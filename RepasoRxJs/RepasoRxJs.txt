@@ -216,4 +216,119 @@ Fijate que podria desestructurar los argumentos de esa callback y fijate tambié
 
 				VIDEO 25 FUNCIÓN RANGE
 
-				
+La función range(start,end) crea un Observable que emite una secuencia de números en base a un rango.Ojo,son sólo números,y por defecto son síncronos aunque pueden transformarse a asíncronos usando un asyncScheduler:
+range(start:0,count?,scheduler?) <- fijate que por defecto empezará en 0,y al ser opcional count stambién me vale para una cuenta infinita.Por último el tercer argumento permite usar 'scheduling' en las emisiones de las notificaciones.
+
+const obs$ = range(-5,10,asyncScheduler) <- a pesar de lo que pueda parecer emitirá del -5 al 4(diez emisiones) y no hasta el 10.Además ya no será sincrono(asyncScheduler viene del core de rxjs)
+
+		VIDEO 26 Y 27 INTERVAL Y TIMER FUNCIONES PARA INTERVALOS DE TIEMPO
+
+Interval crea un Observable que emite numeros positivos secuencialmente desde el 0 . Más o menos sería como setInterval de Javascript.
+Por otro lado timer sería como setTimeout,es una cuenta atrás,al de X ms emitirá un valor.Aunque puede ser más poderoso que simplemente emitir un valor cuando termine la cuenta,ya que puede empezar a emitir más valores en un intervalo concreto,
+NOTA: ambos son asíncronos por naturaleza,a diferencia de of o range(y seguramente from) que son síncronos.
+
+const observer: Observer<any> = {
+  next: val => console.log('next',val),
+  error: err => console.error('error',err),
+  complete: () => console.log('complete')
+}
+
+const interval$ = interval(1000)
+
+interval$.subscribe(observer)
+
+IMPORTANTE: puedo combinar este Observable con operadores como take o skip para personalizarlo.
+
+En cuanto al timer,ya lo he mencionado,emitirá un valor(el 0 en principio) en cuanto termine la cuenta atrás.De nuevo,no es un proceso síncrono,sino que empezará tan pronto el stack de callbacks de javascript lo permita
+
+* Si bien timer por naturaleza sólo emite un valor,le puedo pasar un segundo argumento y seguirá emitiendo valores con ese intervalo de ms entre ellos(con lo que esta firma es más poderosa que interval):
+const timer$ = timer(2000,1000)<- espera 2s para emitir el 0 y despues emite 1+ cada 1seg.Fijate que esto no puedo hacerlo con un interval
+
+Fijate que por lo mismo un timer(1000,1000) sería lo mismo que un interval(1000).
+No sólo esto,si ejecuto timer() sin argumentos emitirá el 0 inmediatamente.
+
+Supongo que lo más interesante será emitir lo que yo quiera,y no ese 0.Fijate que aqui se abre un abanico de posibilidades,como mandar eso a las 12 de la noche o desde ahora más 5 segundos:
+const ahoraEn5= new Date();
+ahoraEn5.setSeconds(ahoraEn5.getSeconds() + 5);
+const timer$ = timer(ahoraEn5)
+
+IMPORTANTISIMO: realmente estas cuentas positivas incrementales no me son útiles.Pero en el subscribe hay si que puedo realizar cualquier acción:
+timer$.subscribe( (_) => console.log('hi') ) <- tal como está,al de 5 segundos emitirá el console.log.Asi si tiene sentido,ya que puedo ejecutar cualquier cosa a intervalos regulares,en un momento concreto o tras un periodo inicial concreto.Amazing spiderman,asinto.
+
+				VIDEO 28 ASYNC SCHEDULER
+
+AsyncScheduler no crea un Observable,sino una Subscription.Recuerda que el retorno de método subscribe() crea una Subscription.
+AsyncScheduler me dará más control sobre las funciones anteriores:
+setTimeout()
+setInterval()
+Veamoslo:
+
+/* fijate la similitud con setTimeout al usar asyncScheduler.schedule asi: */
+asyncScheduler.schedule(saludar, 2000);
+asyncScheduler.schedule(saludar2, 3000, 'Fernando'); //tercer argumento para argumentos de la funcion del primer argumento
+
+
+/*  si quiero pasar un state no puedo usar una arrow function,tiene que ser una function normal asinta.Fijate que esta forma combina setTimeout + setInterval*/
+const subs = asyncScheduler.schedule(function (state) {
+  console.log('state', state)
+  this.schedule(state + 1, 1500)
+}, 3000, 0)
+
+setTimeout(() => subs.unsubscribe(),+'6000')
+
+Fijate que la segunda forma con la function plana permite mandar un nuevo estado,configurar cada cuanto,la primera emisión,etc...Podría ser útil.
+
+IMPORTANTE: fijate que todas estas opciones,asyncScheduler,timer,interval o incluso las funciones de Javascript me permiten mandar ese proceso al callback,todos son asincronos,con lo que no bloquean la siguiente instruccion.
+
+				VIDEO 29 OBSERVABLE FROM
+
+La función from permite crear un Observable desde un valor iterable,como un array,una promise,otroObservable, entre otras cosas.
+Fijate que from va a iterar siempre que pueda:
+from('Fernando') <- itera por cada char F-e-r-n-a-n-d-o
+from([1,2,3,4,5,6]) <- itera por el array 1,2,3,4,5,6 <- observa que recibe un arg y emite 6.Nunca sucederá esto con of(a menos que use spread operator)
+
+ TIP: fijate que debo añadir TIP a mi repertorio y fijate que puedo meter una Promise en el argumento(supongo que con of también puedo):
+
+const source$ = from( fetch('https://api.github.com/users/klerith'));
+
+source$.subscribe(async observer => await observer.json().then(console.log));
+
+IMPORTANTE: Rx ya provee su propia implemetación de la API fetch usando el operador ajax,lo cual obviamente sería mejor elección.
+
+Recuerda que también puedo iterar una función generadora con from:
+const generadora = function*() {
+  yield 1; yield 2; yield 3; yield 4; yield 5;
+}
+const iterable = miGenerador();
+from(iterable).subscribe(observer)
+Fijate que también podria hacer:
+from(generadora()).subscribe(observer).
+NOTA: debo memorizar que una funcion* generadora va marcada con el asterisk.
+
+IMPORTANTE: este tipo de Observables(of,from) se completarán al recorrer el último elemento,a no ser que tenga un ciclo infinito de emisiones
+
+
+			SECCION 05 PRIMEROS OPERADORES RXJS
+
+Es al usar operadores donde ReactiveX brilla,ya que permite jugar y manipular los streams de datos de una forma sencilla y legible,además de sorprendente.
+En esta sección veremos los operadores map,pluck,mapTo,filter,tap,reduce,scan y como encadenar más de uno.
+
+				OPERADOR MAP
+
+Es,quizás,el más común y usado,ya que permite transformar la emisión de entrada del stream del Observable en otra emisión diferente
+IMPORTANTE: el operador MAP trabaja con cualquier dato que emita el Observable y puede transformalo en cualquier otro(aunque puedo restringir esto mediante el tipado->map<T,R>)
+
+IMPORTANTE: recuerda que los operadores necesitan abrir el stream con pipe():
+
+range(1, 5).pipe(
+  map<number, number | string>(val => String(val * 10))
+).subscribe(console.log)
+
+const keyup$ = fromEvent<KeyboardEvent>(document,'keyup') // <- solo los asintos tipamos fromEvent
+const keyupWithCode$ = keyup$.pipe(
+  map(event => event.code)
+)
+
+keyupWithCode$.subscribe(val => console.log('code: ',val))
+
+
