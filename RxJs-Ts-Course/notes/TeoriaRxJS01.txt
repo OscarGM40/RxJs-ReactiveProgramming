@@ -1,0 +1,745 @@
+  		    		CURSO RX para JS usando Typescript		
+
+Este curso es totalmente válido para RsJava o RxDart o cualquier cosa que use extensiones reactivas.
+Haremos el curos en Typescript para acostumbrarnos a un lenguaje tipado,y a tipar las extensiones reactivas
+Nota: recuerda poner marcadores para mi al hacer cualquier curso de Udemy.
+
+   SECCION DOS INTRODUCCION A LAS EXTENSIONES REACTIVAS Y LA PROGRAMACIÓN REACTIVA
+
+En esta sección aprenderemos sobre:
+
+1- Conceptos generales de RxJs y las extensiones reactivas
+2- ¿Qué es ReactiveX?
+3- ¿Cómo funciona?
+4- ¿Qué es el patrón observable?
+5- ¿Cómo leer los diagramas de canicas?
+6- Y otros temas
+
+Es una sección corta llena de teoría, pero es indispensable que lo aprendamos para poder tener un mejor panorama de la programación reactiva.
+
+					VIDEO 7 CONCEPTOS GENERALES
+
+La primera pregunta que me debo hacer,es: ¿por qué usar extensiones reactivas?.La respuesta es porque todos quieren información en tiempo real.
+
+Esto se aplica por ejemplo a Twitch(ya que queremos saber de los últimos tweets), o a una aplicación e-commerce donde necesito saber el último precio vigente.
+En cuanto a los videojuegos están por todos lados.
+En un chat también es algo necesario.
+
+También voy a querer que mi aplicación pueda hacer peticiones a la red y a la vez seguir interactuando con la interfaz de usuario,y que al retornar esa información pueda mostrar cambios dinámicos al usuario,todo esto sin caer el rendimiento.
+
+Una vez contestada la pregunta de porqué usarlas viene la pregunta de cúando usarlas:
+1- Para manejar cualquier evento de la UI
+2- Cuando es necesario notificar sobre cambios en un objeto.
+3- En comunicación por sockets
+4- Al trabajar con flujos de información(streams)
+
+La programación reactiva tiene tres piezas fundamentales.Éstos son los Observables,los Subscribers y los Operators.
+
+	 OBSERVABLES
+
+1- Los Observables son la pieza fundamental de las extensiones reactivas.
+2- Básicamente son la fuente de información.
+3- Pueden emitir múltiples valores,sólo uno o ninguno
+4- Pueden emitir errores
+5. Pueden ser infinitos(no dejan de informar) o finitos(se completan)
+6- Pueden ser síncronos o asíncronos.
+Nota: aunque su fuerte es la asincronia nada les impide ser síncronos.
+
+	SUBSCRIBERS
+
+1- Los Subscribers se subscriben a un Observable,es decir,están pendientes de lo que realiza(emite) el Observable
+2- Consumen/observan la data del observable
+3- Pueden recibir los errores y eventos del Observable
+4- Un Subscriber desconoce todo lo que se encuentra detrás del Observable.(no saben si la información se ha filtrado,ha sido mapeada antes,..)
+
+	OPERATORS
+
+1- Son una pieza fundamental de las extensiones reactivas.
+2- Son usados para TRANSFORMAR LOS OBSERVABLES(map,group,scan,...)
+3- Son usados para FILTRAR OBSERVABLES(filter,distinct,skip,debounce,...)
+4- Son usados para COMBINAR OBSERVABLES
+5- Son usados para CREAR NUEVOS OBSERVABLES.
+
+Imagina un ejemplo en el que necesite:
+1 rastrear la ubicación del usuario
+2 sólo tomar la ubicación cuando la precisión es menor a 20 metros
+3 seguir la aceleración y el sensor magnético para determinar el acimut
+4- combinar ambos valores
+5- enviar cada 5 segundos esta información a una API
+6- con la respuesta de la API,dibujar algo en la UI
+
+Hacer esto sin extensiones reactivas sería mucho trabajo,y muy lioso.
+
+Beneficios de la programación reactiva:
+1- Evitar el 'Callback Hell'
+2- Trabajar de forma simple tareas sincronas y asíncronas
+3- Uso de operadores para reducir y simplificar el trabajo
+4- Es fácil transformar los flujos de información a conveniencia
+5- Es un código más limpio y fácil de leer
+6- Además son fáciles de implementar
+7- Es fácil anexar un nuevo operador u otro proceso sin alterar el producto
+
+				VIDEO 08 QUE ES REACTIVE X
+
+ReactiveX es una API para programación asíncrona usando Observables.Es una combinación de las mejores ideas para el patrón Observer,el patrón Iterator y la programación funcional.
+Pero,¿qué son cada uno de estos patrones?:
+
+1- El patrón Observer es un patrón de diseño de software que define una dependencia del tipo uno a muchos entre objetos,de manera que cuando uno de los objetos cambia su estado,notifica este cambio a todos los dependientes.
+El que emite la información es el Observable,los que reciben la información son los Subscriber,ya que se tuvieron que subscribir.Pueden cancelar la Subscription,pero el Observable puede seguir emitiendo valores.
+
+2- En POO,el patrón Iterador define una interfaz que declara métodos necesarios para acceder secuencialmente a un grupo de objetos de una colección.
+next,hasNExt(),before() podrían ser métodos de este patrón.
+
+3- La programación funcional es básicamente,crear un conjunto de funciones sin mutar la data y sin efectos secundarios(muy útil en JS,ya que Rx previene que se pasen los objetos por referencia,preveniendo que muten,algo que no hace JS por ser muy prehistoric)
+
+Recuerda: el patrón Observer notifica cuando suceden cambios(siempre relación de uno a muchos). El iterator ayuda al iterar.La programación funcional ayuda no mutando la data.
+
+ReactiveX es pues la combinación de estos tres patrones bien implementados.
+
+				VIDEO 09 COMO LEER LOS DIAGRAMAS DE CANICAS
+
+Doc oficial: http://reactivex.io/documentation/observable.html
+
+Es buena práctica y un standar identificar a los Observables con el $.El flujo siempre es igual.
+Hay un Observable que emite valores(strings,objetos,números,...)Puede emitir indefinademente o parar(se usa un | pipe para decir que para)
+Una caja debajo de él se usa para especificar la zona de transformaciones mediante operators(filtrado,mapeado,...)
+Más abajo aún se verán los valores de emisión (y una X para un error).Realmente son grafos sencillos.
+NOTA: el operator scan es un acumulador
+
+					VIDEO 10 CONFIGURACION DEL PROYECTO
+
+Me bajo el starter de FH y reinstalo los node_modules.Fijate que usaremos Typescript y Webpack y el puerto 8081.
+
+					SECCION 03 OBSERVABLES
+
+Voy a ver Observables,Emisiones,Cold Observables,...
+Estamos a las puertas de la sección que nos enseñará sobre los observables, el primer eslabón de la programación reactiva, veremos temas como:
+
+1- Observers
+2- Subscriber
+3- Unsubscribe
+4- Subjects
+5- Hot y Cold Observables
+6- Observables en cadena
+7- Y más
+
+Antes de utilizar funciones que crean observables, es importante comprender las bases para entrar a temas de la generación automática de observables.
+
+					VIDEO 13 NUESTRO PRIMER OBSERVABLE
+
+Recuerda que un Observable puede emitir uno,muchos o ningun valor.
+
+Para emitir usará subscriber.next(value),si por ejemplo quiere emitir 'Hola' usará subscriber.next('Hola').Fijate que para emitir necesitó un subscriber
+
+Internamente el Subscriber puede llamar a subscriber.complete() para terminar la Subscription,pero el Observable podría seguir emitiendo valores perfectament,sólo que ese Subscriber ya no nos escucha.Hagamos todo esto en código
+
+NOTA:cuando importe algo de simplemente rsjs suele ser funciones o clases para crear Observables.Hay varias formas de crearlos.De momento usemos la clase:
+
+import { Observable } from 'rxjs'
+
+Siempre debo tipar el Observable o será de tipo <unkown>:
+const obs$ = new Observable<String> (subscriber => {})
+
+Como primer argumento siempre lleva un subscriber.Este subscriber me va a permitir crear una Subscription,y recibir valores.Para poder verlos tengo que subscribirme con el método subscribe:
+
+const obs$ = new Observable<String>( subscriber => {
+  subscriber.next('Hola')
+  subscriber.next('Mundo')
+  subscriber.complete()
+})
+
+obs$.subscribe( console.log ) <- si no me subscribo no veré los valores,solo estarán almacenados en la Subscription.
+
+Por último,aunque pareciera que el complete no hizo nada realmente este Subscriber no verá más valores posteriores ya que canceló la Subscription.
+
+NOTA:el subscriber es parte de un Observable:
+El observable es un objeto compuesto de varias piezas internamente,el subscriber está dentro de él,asi como un coche tiene motor,puertas,ruedas y todo en conjunto forma el coche.
+Eventualmente,cuando genere un Observable,yo no veré el subscriber,simplemente trabajaré con los valores emitidos por el Observable,pero internamente es el subscriber el que los está emitiendo cmo parte que es del Observable.
+
+Por último recordar que debo especificar que tipo de información fluye a través de un Observable tipandolo(new Observable<string[]>).Perfecto
+
+					VIDEO 14 OBSERVER Y SUBSCRIBER
+
+En la función en la que me subscribo realmente recibo un argumento de tipo observer?:PartialObserver<String>. String porque emitimos strings.Pero,¿qué es este PartialObserver?:
+
+obs$.subscribe(observer?:PartialObserver<T>)
+
+Un PartialObserver está compuesto de tres partes,el next o siguiente valor,el error para cuando haya error y una callback para el complete: 
+
+obs$.subscribe( 
+  next => console.log(next),
+  error => console.error(error),
+  () => console.info('Completado')   );
+Para lanzar un error puedo tratar de acceder a la prop de algo undefined antes de cancelar la Subscription.
+
+IMPORTANTE: realmente lo importante es ver que puedo acceder a los errores y hacer algo cuando suceda uno.
+
+NOTA:realmente está deprecado usar los tres argumentos,en su lugar debo mandar este observer?:PartialObserver<> como único argumento.Es una interfaz,y también necesita saber que tipo de flujo de datos va a fluir a través de él.
+
+import { Observable,Observer } from 'rxjs';
+
+* Fijate que la uso para tipar,igual que lo puedo hacer con una clase
+const observer: Observer<any> = {
+  next: value => console.log('next: ', value),
+  error: error => console.error('error: ', error),
+  complete: () => console.info('completado')
+}
+obs$.subscribe(observer);
+Lógicamente sé que fluyen Strings por el Observer pero de momento lo dejamos en any.
+
+					VIDEO 15 BIBLIOTECA DE EJERCICIOS
+
+Vamos a trabajar en un único proyecto en base a carpetas.Seguir instrucciones del video.
+
+				VIDEO 16 SUBSCRIPTION Y UNSUBSCRIBE
+
+Ambos conceptos son fundamentales(La subscripción y la desubscripción).
+Si miro que es lo que devuelve el obs$.subscribe(observer:PartialObserver):Subscription puedo ver que devuelve una Subscription.
+Por consiguiente puedo asignar este método a una variable y será de ese tipo.
+
+const subscription = intervalo$.subcribe()
+
+setTimeout( () => subscription.unsubscribe(),3000)
+Este es el código necesario para cancelar la Subscription,desde afuera,pero el Observable seguirá emitiendo valores.
+Sin embargo es obvio que dejar un Observable emitiendo valores es un error y redundará en fugas de memoria
+
+Cuando me subscribo a un Observable se crea una nueva instancia y se ejecuta todo su código.
+
+Para poder limpiar realmente algo al cancelarse todas las Subscriptions está la funcion return de un Observable.
+
+const intervalo$ = new Observable<number>( subscriber => {
+  let count = 0;
+
+  const interval = setInterval( () => {
+    subscriber.next(count);
+    count++;
+  },1000);
+
+  return () => {
+    clearInterval(interval);
+    console.log('Intervalo destruido');
+  }
+} );
+
+Sin embargo,trabajaremos con operadores.Es importante ver que tengo una zona para ejecutar código cuando se llama el unsubscribe en una Subscription.
+
+				VIDEO 17 TERMINAR OBSERVABLES EN CADENA
+
+Debo entender que el unsubscribe no es lo mismo que el complete.Cuando yo llame al complete voy a disparar automáticamente la función return del Observable
+cnst obs$ = new Observable<any>{
+  
+ setTimeout( () => {
+    subscriber.complete();
+  }, 2500); <- al de 2.5 seg termino el Observable
+    
+  return () => { <- al terminar el Observable ejecutaré lo que haya aqui
+     clearInterval(interval);
+     console.log('Intervalo destruido');
+  }
+
+Esto certifica que no es lo mismo subscriber.complete() que un unsubscribe().Volviendo al tema del video,esto es muy incómodo:
+
+setTimeout(() => {
+  sub1.unsubscribe();
+  sub2.unsubscribe();
+  sub3.unsubscribe();
+  console.log('Se han destruido todos los subs');
+}
+,7500);
+
+Puedo usar el método add(teardown) ,el cual puedo ver como un concat para Arrays,concatenando subscribciones:
+  subs1.add( subs2 ).add( subs3 );
+
+
+setTimeout( () => subs1.unsubscribe(),6400);
+[Complete]
+index.ts:20 Intervalo destruido
+index.ts:20 Intervalo destruido
+index.ts:20 Intervalo destruido
+
+Puedo ver que sólo uno llamo a subscriber.complete() pero los tres llamaron al return(cancelando la sub)
+
+NOTA: al parecer ya no se pueden encadenar Subscriptions,sólo de una en una:
+sub1.add(sub2);
+sub2.add(sub3);
+Sin embargo,si encadena la uno a la dos y la dos a la tres al llamar a la uno llmaré a la dos que llamará a la tres,consiguiendo lo mismo.
+
+IMPORTANTE: no hace falta desubscribirse de un Observable que ya se ha completado:
+Yo tambien tuve la misma duda, resulta ser que no, no es necesario desuscribirse de un Observable que ya ha emitido la señal de complete, la fuente de esto está en la documentación, te dejo el enlace por aca, 
+tear down significa 'desmontar,acabar,derribar'
+
+Recuerda que ni el complete ni el unsubscribe matan los procesos del setInterval sin la ayuda de un clearInterval en el return, y que ambas llaman al return(),seguir investigando.
+
+					VIDEO 18 SUBJECT
+
+Subject es un tipo especial de Observable.Para explicar que hace es mejor ver el problema antes.Imagina dos subscripciones a Observable que emite valores random:
+
+const intervalo$ = new Observable<number>( subs => {
+  const intervalo = setInterval( () => {
+    subs.next(Math.floor(Math.random()*100));
+  }, 2000);
+  return () => {  
+    clearInterval(intervalo);
+    console.log('Intervalo destruido');
+  }
+});
+
+* La salida podría ser algo como esto:
+subs 1: 3
+subs 2: 34
+subs 1: 86
+subs 2: 75
+
+Quedando claro que cada Subscription está recogiendo un valor random diferente.La pregunta es,¿que pasaría si yo quiero que ambas subscripciones emitan el mismo random value,es decir que ambas subscripciones recogan el mismo valor?
+
+La respuesta es que puedo hacerlo usando en vez de un Observable usando un Subject,que es un tipo especial de Observable que admite multicasting.Fijate que lo importo de 'rxjs' y alli todo lo que hay crea Observables:
+
+import { Subject } from 'rxjs';
+
+const subject$ = new Subject();
+
+Subject es un tipo especial de Observable,que admite multicasting(múltiples Subscriptio pueden escuchar por el next,recogiendo pues el mismo valor todas ellas.
+Además también es un observer,con lo que puede ir como argumento en el subscribe.
+Y por último también tiene Next,Error y Complete(pues es un observer).
+
+Con esto en mente,y dado que puede ir como un observer,se puede usar como observer en un paso intermedio a la salida de un primer Observable:
+
+const subject$ = new Subject();
+intervalo$.subscribe( subject$ );
+ const subscription1 = subject$.subscribe( rnd => console.log("subs 1: "+rnd) );
+const subscription2 = subject$.subscribe( rnd => console.log("subs 2: "+rnd));
+
+Fijate que es como activar multicasting simplemente.Interesante
+
+NOTA:Utilizo mucho el Subject con Angular para suscribir diferentes componentes y que estén atentos a el valor emitido. Por ejemplo, tengo un navbar, un sidebar y breadcrumbs y cada componente necesita estar pendientes del mismo valor para cambiar sus propiedades. Entonces utilizo el Subject en un servicio y desde cualquier otro componente puedo emitir nuevos valores para los diferentes componentes suscritos.
+
+NOTA: Diferencias entre Subject y BehaviourSubject
+Ok, la principal diferencia entre ambos es que BehaviorSubject puede emitir el valor actual asignado. Por ejemplo:
+
+const subject = new Rx.BehaviorSubject();
+ 
+subject.next(Math.random());
+ 
+subject.subscribe((data) => {
+    console.log('Subscriber A:', data);
+});
+ 
+// Subscriber A: 0.24957144215097515
+Mientras que el Subject, solo emitirá nuevos valores de difusion omitiendo el actual.
+
+const subject = new Rx.Subject();
+ 
+subject.next(‘primer valor’);
+ 
+subject.subscribe((data) => {
+    console.log('Subscriber A:', data);
+});
+ 
+subject.next(‘segundo valor’);
+ 
+// Subscriber A: segundo valor
+
+					VIDEO 19 SUBJECT PARTE DOS
+
+Por cierto la salida tras el multicasting sería:
+subs 1: 44
+subs 2: 44
+subs 1: 71
+subs 2: 71
+
+Bien,veo que el multicasting funciona perfectamente.Ahora bien,Subject no termina aqui,recuerda que es un Observable y un Observer,y que tengo acceso a next,asi que puedo emitir un valor en multicasting si quiero:
+
+setTimeout( () => {
+  subject$.next(340340);
+},3500)
+ Al de 3.5secs voy a emitir a todos ese valor.
+NOTA: cuando un observer va como argumento de un Observable(como es el caso justo en este ejemplo) se le conoce como subscriber o emitter,pero es un observer.
+const observable = new Observable( subs =>   <- este arg es un observer,pues tengo acceso a subs.next o subs.error o subs.complete,luego es un observer.
+
+Y de igual maner puedo llamar al complete!,parando la Subscription:
+setTimeout( () => {
+
+  subject$.next(10010110);
+  subject$.complete();
+},3500);
+
+subs 1: 29
+subs 2: 29
+subs 1: 10010110
+subs 2: 10010110
+
+NOTA: cuando la data es producida por el observable en sí mismo,es considerado un "Cold Observable".Pero cuando la data es producida FUERA del Observable es llamado un "Hot Observable".
+En pocas palabras un Subject me permite convertir un Cold Observable a un Hot Observable(y emitir yo si quiero valores adicionales con él)
+
+IMPORTANTE: recuerda que el return de un Observable se va a llamar cuando se llame al unsubscribe de una Subscription o cuando se llame al complete de un observer.Fijate que son cosas diferentes,para la primera necesito llamar al subscribe y almacenar en una variable esa Subscription,para lo segundo lo puedo hacer con el argumento subscriber del Observable.
+
+const subject = new Subject();
+const subsOriginal = intervalo$.subscribe(subject$); <- yo no me he desuscrito de aqui,fijate
+const subs1 = subject$.subscribe(observer);
+const subs2 = subject$.subscribe(observer);
+
+Si ahora termino el subject$ llamando al complete aún me quedará subsOriginal funcionando!:
+setTimeout( () => {
+  subject$.next(34343);
+  subject$.complete() <- bien ,este complete cancela a subs1 y subs2,pero que hay de subsOriginal.Nadie llamó al complete de su observer o al unsubscribe de ella.
+Sin  más,me falta desuscribirme de ella también(ya que es más fácil que llamar al complete de su observer):
+
+setTimeout( () => {
+  subject$.complete();
+  subsOriginal.unsubscribe();
+
+Realmente ha quedado claro,aunque sean varias cosas.Además,puede observarse perfectamente que todo este códgo es muy farragoso y tedioso,y muchas cosas pueden salir mal,como el unsubscribe que nos estabamos dejando por llamar,dejando un interval funcionando.
+
+Todo esto da pie a la siguiente sección,donde veremos funciones que nos facilitarán la construcción de Observables.RxJs ya trae un montón de funciones y operadores para crear Observables rápido y no como hemos hecho hasta ahora
+
+Resumen: un Subject lo es todo,xd, es un Observable y un Observer(Observador).
+
+NOTA: si llamo al complete del observer no hace falta que las subscriptions se desuscriban con el unsubscribe.
+
+NOTA:y como el Observable lleva por argumento un Observador(interfaz Observer) pudo desarrollar su lógica afuera realmente:
+const observer: Observer<any> = {
+    next: value => 
+    {
+        if(value.valor ===1){
+            //logica acá
+    },
+    error: error => console.error('error', error),
+    complete: () => console.log('terminó'),
+}
+Observable$.subscribe(observer).
+* Sería lo mismo que desarrollarla dentro,como hemos hecho hasta ahora.
+
+		EXTRAS DIFERENTES TIPOS DE SUBJECTS
+
+The BehaviorSubject(almacena el valor actual y cualquier subscriber puede preguntar por él)POr tanto es muy útil.
+
+One of the variants of the Subject is the BehaviorSubject. The BehaviorSubject has the characteristic that it stores the “current” value. This means that you can always directly get the last emitted value from the BehaviorSubject.
+There are two ways to get this last emited value. You can either get the value by accessing the .value property on the BehaviorSubject or you can subscribe to it. If you subscribe to it, the BehaviorSubject will directly emit the current value to the subscriber.
+
+The ReplaySubject(puede transmitir a las nuevas suscripciones los valores que ya ha emitido)Interesante también.
+
+The ReplaySubject is comparable to the BehaviorSubject in the way that it can send “old” values to new subscribers. It however has the extra characteristic that it can record a part of the observable execution and therefore store multiple old values and “replay” them to new subscribers.
+When creating the ReplaySubject you can specify how much values you want to store and for how long you want to store them. In other words you can specify: “I want to store the last 5 values, that have been executed in the last second prior to a new subscription”
+
+The AsyncSubject(transmite asincronamente el último valor al completarse)De un sólo uso pues.también puede ser útil
+
+While the BehaviorSubject and ReplaySubject both store values, the AsyncSubject works a bit different. The AsyncSubject is aSubject variant where only the last value of the Observable execution is sent to its subscribers, and only when the execution completes
+
+Recuerda que un EventEmitter es multicasting,como cualquier Subject.Un Observable es monocasting.
+
+				SECCION 04 FUNCIONES PARA CREAR OBSERVABLES
+
+IMPORTANTE: an RxJS Subject is like an EventEmitter, but an RxJS Observable is a more generic interface(los EventEmitter son multicasting,emiten el mismo valor a los que lo escuchen)
+
+En esta sección usaremos las funciones que ya provee RxJs como interval,of,from,range,timer,asyncScheduler,...
+
+Es momento de utilizar funciones para crear observables!, esto nos ayudará a reducir mucho el tiempo a la hora de crear nuevos observables.
+
+Los temas principales de la sección son:
+1- of
+2- fromEvent
+3- interval
+4- timer
+5- asyncScheduler
+
+Mas adelante veremos otras funciones que crean observables, pero por ahora enfoquemos nuestra atención en las básicas y más comunes.
+
+				VIDEO 23 OPERATOR OF
+
+Of es una función que me permite crear Observable en base a un listado de elementos,estos elementos pueden ser cualquier tipo de objeto.
+of(1,2,3,4,5,6).
+El operador of va a emitir los valores uno por uno de manera secuencial y síncrona(es decir que emitiría 1-2-3-4-5-6)
+Cuando emite el último valor automáticamente su Observer llama al complete,completando el Observable.
+La sintaxis es :
+of<T>(..args: Array<T | SchedulerLike>):Observable<T>
+Asi que puedo ver que este ejemplo retornará un Observable<Number>
+
+NOTA:recuerda que todo lo que crea Observables( o bien interfaces para regular nuestros Observables)  esta en 'rxjs' luego es obvio de donde viene 'of':
+
+import { of } from 'rxjs';
+
+const obs$ = of(1, 2, 3, 4, 5,6);
+
+console.log('Inicio de la Subscription a obs$')
+obs$.subscribe(
+  next => console.log("Next: "+next),
+  error => console.log("Error: "+error),
+  () => console.log("Complete"));
+  
+console.log('Fin de la Subscription a obs$')
+Con este ejemplo puedo ver que los Observables también pueden emitir valores de forma síncrona:
+Inicio de la Subscription a obs$
+Next: 1
+Next: 2
+Next: 3
+Next: 4
+Next: 5
+Next: 6
+Complete
+Fin de la Subscription a obs$
+
+¿Fue por el uso de of()?Bien,cabe recalcar que en la función cada elemento se separa por comas: 
+(of([1,2,3,4,5,6]) <- sólo emitirá un valor,el arreglo entero
+Of convierte la secuencia de argumentos que recibe en valores que fluyen a través del Observable
+NOTA: podría hacer el spread del arreglo para que sean 6 elementos y no uno:
+of(...[1,2,3,4,5,6]) <- esto es lo mismo que of(1,2,3,4,5,6)
+
+La función of() puede recibir tipos mezclados perfectamente:
+const obs$2 = of([1,2],{a:1,b:2},function(){},true,Promise.resolve(true));
+
+Si imprimo los dos veré de nuevo que la función of() emite secuencialmente todo:
+Inicio de la Subscription a los obs$
+index.ts:12 Next: 1
+index.ts:12 Next: 2
+index.ts:12 Next: 3
+index.ts:12 Next: 4
+index.ts:12 Next: 5
+index.ts:12 Next: 6
+index.ts:12 Complete
+index.ts:13 Obs2$: 1,2
+index.ts:13 Obs2$: [object Object]
+index.ts:13 Obs2$: function(){}
+index.ts:13 Obs2$: true
+index.ts:13 Obs2$: [object Promise]
+index.ts:13 Obs2$ Complete
+index.ts:14 Fin de la Subscription a los obs$
+
+				VIDEO 24 FUNCTION fromEvent
+
+La función fromEvent permite crear Observables en base a un Event,al hacer target en algun elemento(ambas deben cumplirse).Veremos un tip para saber el tipado de cualquier evento en TS.Ejemplo:
+
+fromEvent(document,'scroll') <- segun hagamos scroll emitiriamos los eventos indefinademente(aunque podemos usar complete o unsubscribe para parar,claro).
+Fijate que necesitamos una zona(el document) y una acción(el scroll)
+Creemos dos listeners para el keyup y el click:
+import { fromEvent } from 'rxjs';
+
+const src1$ = fromEvent(document,'click');
+const src2$ = fromEvent(document,'keyup');
+
+TIP: para saber que <Event> lleva el fromEvent,y por ello poder obtener la ayuda,que en este caso es casi imprescindible simplemente disparo el evento:
+
+next: PointerEvent {isTrusted: true, pointerId: 1, width: 1, height: 1, pressure: 0, …}
+next: KeyboardEvent ...
+Ya sé de que tipos son,asi que procedo a tipar la función:
+const src1$ = fromEvent<PointerEvent>(document,'click');
+const src2$ = fromEvent<KeyboardEvent>(document,'keyup');
+
+De esta forma ya no me dirá que el arg es de tipo Event(dandomé solo unos poos métodos genéricos,sino que sabrá que el evento es de tipo PointerEvent aydandome a acceder a las coordenadas o la última key,por ejemplo).
+
+src1$.subscribe(val => console.log(val.pageX,val.pageY));
+src2$.subscribe(val => console.log(val.key));
+
+Y además desde ECMA6 puedo desestructurar
+src1$.subscribe(({pageX,pageY}) =>console.log(pageX,pageY));
+
+NOTA: no es nada recomendable esto,pero si tuviera problemas por el tipado siempre podría tiparlo como any,bajando las restricciones y haciendo que pase el código
+
+Recuerda que puedo acceder a un elemento por su id,clases,name,...
+const myButton=<document.getElmementById> || document.getElementByClass || document.getElementByName;
+El EventTarget hace referencia al objeto DONDE se lanza el evento,los más comunes son Element,document y window.
+
+				VIDEO 25 FUNCION RANGE
+
+La función range(start?:number=0,count?:number=0,asyncScheduler) crea un Observable que emite una secuencia de números autoincremental en base a un rango.Por defecto son síncronos pero se pueden transformar en asíncronos usando un asyncScheduler,que veremos pronto
+
+En pocas palabras,si tengo un range(1,5) crearé un Observable que emitirá del 1 al 5,o sea (1,2,3,,4,5).Al llegar al 5 se va a completar sólo.
+
+En realidad lo que hace es emitir números(Integers) autoincrementales,el primer argumento es la posición inicial y el segundo el número de emisiones,ojo:
+range(-5,10) <- no va a ir del -5 al 10,sino que va a empezar desde -5 y emitir 10 valores(parará en en +4)
+Ambos valores son opcionales(start será 0 por default y count también:
+range(5) < 0,1,2,3,4 <- 5 emisiones empezando desde el 0
+range() <- no emite nada,pues el count es 0
+
+La función asyncScheduler permite cambiar un procedimento que por defecto es síncrono en asíncrono.También viende de 'rxjs':
+
+const src$2 = range(0,10,asyncScheduler);
+
+console.log('inicio');
+src$2.subscribe(console.log);
+console.log('fin');
+
+Puedo ver que la emisión fue asíncrona:
+
+inicio
+fin
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+
+Puedo ver que la emisíon se salió del flujo sincrono natural del script
+
+				VIDEO 26 FUNCIONES INTERVAL Y TIMER
+
+Ambas funciones me permiten crear Observables que trabajan con intervalos de tiempo.
+El interval(period,scheduler) emitirá una secuencia de valores que empieza en 0 hasta infinito.Es una secuencia  autoincremental entera( 0,1,2,3,4,5,6,7...)Tanto el interval como el timer son asíncronos por naturaleza,de otra forma no podrían esperar esos milisegundos.
+
+No se puede cambiar ni el avance ni el valor inicial.Algo a destacar es que se va a empezar a ejecutar en cuanto se libere la pila de callbacks de Javascript.
+Aunque cancele la subscription con unsubscribe el interval va a seguir corriendo,ya veremos como pararlo
+
+La función timer(number| Date,scheduler) es muy parecida,sólo que crea un Observable que emite un único valor,no una secuencia.Despues de x segundos va a emitir ese valor,y se va a completar dicho Observable.
+Esto es muy útil si sé en que momento debe ejecutarse una tarea.Fijate que puedo pasarle una fecha
+
+Fijate que aunque creara un interval(0) sigue siendo asincrono.Javascript agregará a la pila de callbacks cada emisión de Observable,y veré antes el console.log('fin') que la primera emisión por que es más rápido el console.log:
+
+const interval$ = interval(0);
+
+console.log('inicio');
+interval$.subscribe(observer);
+console.log('fin');
+
+Veré inicio - fin - 0,1,2,3.... 
+
+Por último fijate que nunca se está llamando al complete,esto cambiará si uso timer:
+
+const observer: Observer<any> = {
+    next: val => console.log('next:',val),
+    error:null,
+    complete: () => console.log('complete')
+}
+
+const timer$ = timer(2000);
+
+console.log('inicio');
+timer$.subscribe(observer);
+console.log('fin');
+
+Veré inicio-fin y un 0 al de 2 segundos y despues complete.Esto me certifica que es asíncrono y que se completó,y que emitió un valor al de 2000ms
+El timer,sin embargo es más útil que simplemente emitir un valor al de determinado tiempo o en determinada Date.
+
+			VIDEO 27 TIMER - CONFIGURACIONES ESPECIALES
+
+De nuevo si usara un timer(0) seguiria siendo asíncrono:
+const timer$ = timer(0);
+
+console.log('inicio');
+timer$.subscribe(observer);
+console.log('fin');
+veré inicio-fin next:0 y complete.
+Esto es por la misma razón,Javascript mira en la stack de callbacks y tarda un poco en hacer esto.
+
+Sin embargo,esto no es sobre lo que queria hablar Fernando.Si le pasamos un segundo argumento actuará exactamente igual que el interval:
+
+const timer$ = timer(2000,1000) <- al de 2 segundos emitira numeros cada 1000ms
+(0,1,2,3,...)
+En pocas palabras estoy creando un interval que empezará al de dos segundos.Interesante.
+
+/* con timer puedo programar acciones en base a momentos cualesquiera como dentro de 5 segundos */
+const hoyEn5 = new Date();
+hoyEn5.setSeconds(hoyEn5.getSeconds() + 5);
+const timerProgrammed$ = timer(hoyEn5);
+
+Tener tareas programables puede ser terriblemente interesante,aunque aqui el ejemplo sea muy básico puedo programar tareas a media noche,a las 8AM,etc...Timer es mucho más potente que interval.
+
+						VIDEO 28 ASYNCSCHEDULER
+
+AsyncScheduler no crea un Observable,crea una Subscription.Recordemos que una Subscription es el producto de ejecutar .subscribe() sobre un Observable.
+
+Básicamente podré ejecutar estas dos instrucciones,pero aparte de tener más control sobre lo que está sucediendo,podré manejar el producto de lo que haga como cualquier otra Subscription en rxjs
+setTimeout(() => { }, 3000);
+setInterval(() => { }, 3000);
+
+La sintaxis es asyncScheduler.schedule(funcion,delay,state):
+
+import { asyncScheduler } from 'rxjs';
+
+const saludar = () => console.log('Hola mundo');
+
+* Fijate que el primer argumento es la definicion de una funcion.Es buena práctica hacerlo afuera,pero puedo definirla hay mismo.
+asyncScheduler.schedule(saludar,2000);
+
+Bien,esto es muy sencillo,pero que pasa si quiero usar una funcion con argumentos
+const saludar2 = nombre => console.log(`Hola ${nombre}`);
+asyncScheduler.schedule(saludar2,2000) <- me dará Hola undefined.
+
+* Para poder mandar argumentos tengo que usar el tercer argumento,que es el state.Se trata del estado de lo que va a ser el schedule.
+En este caso 'Fernando' valdrá,pero porque es un único argumento.Si necesitará más de un argumento tendré que usar un objeto
+
+asyncScheduler.schedule(saludar2,2000,'Fernando');
+
+Bien,ya he visto como usar asyncScheduler simulando un setTimeout,pero,¿como lo hago para simular un setInterval?
+
+/* para simular al setInterval será schedule(function,delay,initialState)Como condiciones la function no puede ser una arrow function y el stateInitial debe ser ún único argumento*/
+asyncScheduler.schedule(function(state){
+    console.log('state', state);
+    this.schedule(state + 1, 1000); 
+},3000,0); // al de tres segundos emitirá desde el 0 de uno en uno.Fijate que aqui si que puedo definir el avance y el numero inicial,es mucho más potente que el setInterval
+
+Fijate que se ha llamado a si misma dentro!
+this.schedule(state + 1 , 1000);
+La sintaxis es this.schedule(newState,milisegundos)
+
+Genial.Importante: hay que cancelar la subscripción en algun momento:
+const subs = asyncScheduler.schedule() <- recuerda que la función retorna una Subscription,luego la almaceno en una variable.
+
+setTimeout( () => {
+  subs.unsubscribe()
+},6000);
+
+* Pero ya que estamos cancelemoslo asi
+asyncScheduler.schedule( () => { subs.unsubscribe() },6000);
+
+				VIDEO 29 MÁS EJEMPLO CON FROM Y OF
+
+ Ambas funciones sirven para crear un Observable a partir de los argumentos que reciban.
+La diferencia es que from(no confundir con la funcion fromEvent) es que va a entrar en el argumento(que puede ser un String,una Promise,un Array)  e iterarlo,mientras que of emitiriá un único valor que seriá ese argumento:
+
+const source$ = of([1,2,3,4,5]) <- emitirá [1,2,3,4,5] una única vez
+const source2$= from([1,2,3,4,5]) <- emitirá 1,2,3,4,5 o sea cinco valores
+const source3$= from('Fernando');
+const source4$= from(fetch('https://github.com/api/users/username'));
+
+Fijate que no habia visto la función from hasta ahora y parece muy potente.
+Recuerda que puedo usar el operador spread en la función of para simular el from:const source$ = of(...[1,2,3,4,5]); 
+
+From no se usa sólo para arreglos,puedo usar un String o incluso una petición fetch como argumento.
+
+source$.subscribe(observer); //emite [1,2,3,4,5,6]
+source2$.subscribe(observer); //emite el valor de cada elemento del arreglo
+source3$.subscribe(observer); //emite cada letra del string
+source4$.subscribe(observer); //itera sobre la Response de la promise
+
+/* lógicamente puedo hacer lo que quiera con la Response,como hacerle el toJson a la Response.body */
+source4$.subscribe(res => {
+  res.json().then(console.log)});
+
+  /* si no quiero usar callbacks puedo usar async perfectamente*/
+source4$.subscribe(async res => {
+    const data = await res.json();
+    console.log(data);
+});
+
+NOTA: RxJs ya tiene su forma de hacer las peticiones AJAX,pero también tenemos esta forma,con la función from().
+
+Otro uso muy interesante de la función from es que puede hacer uso de las funciones generadoras/iterables de Javascript.
+
+Doc: https://developer.mozilla.org/es/docs/Web/JavaScript/Reference/Global_Objects/Generator
+Para crear una funcion generadora se usa 'function*(){}' y dentro almaceno valores con la keyword yield + el valor.Aún quedará ejecutar esa función acumuladora para emitir lo que se acumuló.
+ 
+/* from me permite trabajar con funciones generadoras.El asterisco en function*() es el que me dice que es una función generadora */
+const miGenerador = function*(){
+  yield 1;
+  yield 2;
+  yield 3;
+  yield 4;
+  yield 5;
+  yield 6;
+}
+/* Ahora puedo usar un Observable sobre mi generador y obtener secuencialmente cada uno de los valores.Pero primero tengo que llamar a esa funcion,tengo que ejecutarla */
+const miIterable = miGenerador();
+
+/* podria usar un ciclo for tradicional */
+for(let val of miIterable){
+  console.log(val);
+}
+/* pero puedo usar la funcion from para obtener el mismo resultado */
+from(miIterable).subscribe(observer);
+
+Fijate que al usar un Observable puedo saber si hay un error o cuando se completaSin embargo esto aún lo puedo conseguir con el for.Pero en cuanto al uso de operadores como map,filter,tap ahí si que usar un Observable me puede dar muchas ventajas y funcionalidades extra que necesite.
+

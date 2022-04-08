@@ -1,0 +1,904 @@
+					SECCION 05 OPERADORES BÁSICOS DE RXJS
+
+Para tener un concepto general de un operador puedo imaginar una mangera de agua a la que se pone un filtro y cambia el flujo de salida del agua(por ejemplo difuminandola).Esto es un operador,un tratador de la información,puede filtrar,bloquear,cambiar,...
+
+Es momento de entrar al tema de los operadores. Este tema me encanta y es donde ReactiveX brilla, porque la fuerza de los operadores nos permiten jugar con la data y el flujo de información de una manera sorprendente.
+
+Los temas principales de esta sección son:
+
+1- Explicación de los operadores
+2- Operadores como:
+  map
+  pluck
+  mapTo
+  filter
+  tap
+  reduce
+  scan
+3- Encadenamiento de operadores
+
+Entre otros temas que verás poco a poco... estos son los operadores comunes y más usados...
+
+						VIDEO 34 OPERADOR MAP
+
+El operador Map es quizás el más usado de todos.Permite transformar la información,aplicandola funciones,etc y devolver otra información diferente.
+El operador Map trabaja con cualquier tipo de dato y puede regresar otro tipo de dato diferente al recibido.
+
+Cuando salga un valor de un Observable es importante que el valor sea lo más aproximado a lo que yo necesite para trabajar con él.En el subscribe ya debo de tener la data tratada...
+
+* Un ejemplo muy sencillo sería realizar una operacíon matemática antes de la emisión(un porcentaje,división,...)
+
+import { map, range } from 'rxjs';
+
+range(1,5)
+  .pipe(
+    map(x => x * 10),
+  )
+  .subscribe(console.log);
+
+IMPORTANTE: para trabajar con operadores siempre debo usar el método pipe().El método pipe por sí sólo no hace nada,pero sirve para abrir el espacio donde tratar la información antes de emitirla al subscriber.
+Recuerda que el orden de los operadores en el pipe() importa y que cada operador retorna un Observable.
+
+NOTA:podria tipar el operador map,especificando el tipo que recibe y el tipo que retorna(para tener autocompletado correcto en el subscribe).Fijate que puede ser interesante en ciertos momentos:
+
+rante(1,5).pipe(
+  map<number,number>( val => val * 10)
+).subscribe(console.log);
+
+Un ejemplo un poco más práctico sería cuando recibo un objeto muy grande como respuesta de la que sólo quiero una o unas pocas propiedades:
+
+const keyUp$ = fromEvent<KeyboardEvent>(document, 'keyup');
+
+keyUp$.pipe(
+  map(event => event.key),
+).subscribe(console.log);
+
+NOTA:fijate que le puedo hacer .pipe() a cualquier Observable,puedo hacer of(...[1,2,3,4,5]).pipe(map(v => v*2)); ya que of() devuelve un Observable.
+
+					VIDEO 35 OPERADOR PLUCK
+
+El operador 'pluck'(desplumar,arrancar,...se pronuncia plock) es sumamente útil cuando necesito extraer un valor de el objeto que estoy recibiendo y que ese valor sea la nueva salida del Observable.
+
+Puede trabajar también con objetos anidados.Veamoslo en código de nuevo.
+
+Fijate que en el ejemplo anterior usé el map para extraer una propiedad,con pluck es aún más simple:
+
+Change from:
+
+keyUp$.pipe(
+  map(event => event.key),
+).subscribe(console.log);
+
+to:
+
+const keyUpPluck$ = keyUp$
+  .pipe(pluck('key'))
+  .subscribe(console.log);
+
+Fijate que estoy sacando la propiedad 'key' que se llama asi.Podría sacar la propiedad code con pluck('code') o location con pluck('location').Como downside tengo que saber el nombre de la propiedad de antemano.
+
+Ya hemos dicho que en ese objeto puede acceder a cualquier propiedad,no importa el nivel,tiene acceso a todo el literal:
+
+keyUp$
+  .pipe(pluck('target','baseURI'))
+  .subscribe(p => console.log('pluck nivel 2',p));
+En este caso accederia a target.baseURI en vez de a key como arriba.
+
+Este operador sólo vale si es un Object lo que devuelve el Observable y para extraer una única propiedad.Si es un arreglo o necesito varias tendré que usar 'map'.No obstante,su uso es muy sencillo si es lo que necesito.
+
+					VIDEO 36 OPERADOR MapTo
+
+NOTA: COPY & ADD son muy similares(aunque ADD lleva autoextracción de un .tar y wget si es una URL,COPY solo copia files).
+
+El operador mapTo(returnValue) me permite a mi transformar cada emisión de datos de un Observable en una salida específica,básicamente en un valor constante de salida. (pueden ser numeros,objetos,..)
+Pide un valor de retorno estándar por argumento.Veamoslo en código:
+
+const keyupMapTo$ = keyUp$
+  .pipe( mapTo('Tecla presionada'))
+  .subscribe(console.log);
+
+Realmente no tiene más ciencia.
+
+				VIDEO 37 OPERADOR FILTER
+
+El operador filter,como su nombre indica,me sirve para filtrar las emisiones de los Observables.La expresión que evalue debe resolverse a un valor boleano.
+Los subscriptores sólo recibirán los valores en los que esa expresión se evalue a true.
+
+IMPORTANTE: filter como segundo argumento lleva la posición de cada elemento que entró(no de los que salgan,sino de todos.Esto podría ser útil):
+filter(predicate: (value: number, index: number) => boolean):
+
+/* filter evalua una expresión boleana y sólo manda a los subscriptores los valores que evaluen esa expresión a true */
+range(1,10)
+  .pipe( filter( (v,i) => {
+    console.log('index',i);
+    return v % 2 === 1;
+  }) )
+  .subscribe(console.log);
+
+Un ejemplo más lógico podría ser filtrar en base a una propiedad:
+const personajes = [
+  {
+    tipo:'heroe',
+    nombre:'Batman',
+  }, 
+  {
+    tipo:'heroe',
+    nombre:'Robin',
+  },
+  { 
+    tipo:'villano',
+    nombre:'Joker',
+  }
+]
+
+from(personajes)
+  .pipe( filter( elem => elem.tipo === 'heroe') )
+  .subscribe(console.log);
+
+Recuerda que debo tipar con una interface.NO es recomendable,es obligatorio.
+  interface Personaje {
+    nombre: string;
+    tipo: string;
+  }
+
+					VIDEO 38 ENCADENAR  OPERADORES
+
+El encadenamiento de operadores es sumamente importante.Recalcar que el orden es importante,cada operador tomará como entrada de datos la salida de el operador anterior,si lo hubiere,asi que no es lo mismo filtrar antes o despues de transformar con un map la data,por ejemplo
+
+/*imagina que solo quiero realizar algo cuando se pulse enter*/
+const keyup$ = fromEvent<KeyboardEvent>(document,'keyup')
+  .pipe(
+    map( event => event.code ),
+    filter( key => key === 'Enter')
+  );
+keyup$.subscribe(console.log);
+
+IMPORTANTE entender que el orden es importante,pues primero tengo que extraer la propiedad y luego compararla contra el string.Cambiar el orden no tendría sentido
+
+						VIDEO 39 OPERADOR TAP
+
+Este operador es muy usado,y me permite disparar efectos secundarios.No importa lo que retorne este operador,ya que será ignorado,pues debe devolver lo mismo que recibió.
+NO muta la data,sino que me vale para realizar operaciones auxiliares,llamados comunmente efectos o efectos secundarios.
+
+Se usa para salidas por consola u otras acciones que no tengan que ver con mutar la salida,como por ejemplo realizar una petición si el valor que fluye es X.Asi pues,es un operador interesante. 
+
+El operador tap tiene sobrecarga de métodos(hasta 5).Puedo acceder al next,error y complete,sólo el next,dos de tres, o mandar un observer completo.
+
+numeros$
+  .pipe(
+    tap(x => { 
+      console.log('antes', x)
+      return 100;
+   }),
+   map(val => val * 10),
+   tap(y => console.log('despues', y)))
+  .subscribe(value => console.log('subscriber: ', value));
+
+NOTA: el tap es muy útil para depurar,ya que puedo ver como va fluyendo la información e imprimirlo.Su return no da fallo,simplemente es ignorado.
+Por último recuerda que puedo acceder al complete del Observable en el tap:
+numeros$
+  .pipe(
+    tap(x => { 
+      console.log('antes', x)
+      return 100;
+   }),
+   map(val => val * 10),
+   tap({
+      next: val => console.log('despues', val),
+      complete: () => console.log('termino todo')
+   }))
+  .subscribe(value => console.log('subscriber: ', value));
+Esto puede ser muy útil realmente.ya que puedo simular los errores o el complete.
+
+				VIDEO 40 LABORATORIO - PROGRESS BAR PARTE I
+
+Vamos a hacer un pequeño ejercicio que muestre una progress bar dinámica en base al scroll que tenga actualmente.
+
+Recuerda que puedo crear cualquier HTMLElement con document.createElement(element):
+const texto = document.createElement('div');
+Y agregarle contenido HTML con innerHTML
+texto.innerHTML = `<h1>contenido del header </h1>`
+Sin embargo esto sólo ha creado un HTMLElement y su contendido,pero me falta añadirlo.Si bien hay varias opciones appendChild me vale:
+document.appendChild(texto);
+
+El progress bar no es más que un div en una posición fija que va a ir incrementando su ancho dependiendo del scroll.Fijate que Fernando ya me proporcionó los estilos en el proyecto:
+
+.progress-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 5px;
+    width: 0%;
+    background-color: #9034AA;
+}
+Para añadir esta clase hay varias formas:
+const progressBar = document.createElement('div');
+progressBar.classList.add('progress-bar');
+document.body.appendChild(progressBar);
+
+NOTA: Fijate que el webpack no está configurado para autorefrescar el css.
+
+Bien,esto ha sido fácil,pero ahora viene la funcionalidad.El primer paso sería subscribirme al scroll de mi página(recuerda la función fromEvent!):
+
+// Streams de información
+const scroll$ = fromEvent(document,'scroll') <- me subscribo al scroll
+scroll$.subscribe((s) => {
+  console.log('scroll',s);
+});
+
+Sin embargo,puedo ver que emite mucha información,es un objeto muy grande.Asi que primero le haremos un tratado para que sólo emita lo que necesitamos:
+
+/* streams */
+const scroll$ = fromEvent(document, 'scroll')
+  .pipe();
+
+scroll$.subscribe( (perc) => {
+  progressBar.style.width = `${perc}%`;
+}); 
+En el siguiente video veré una presentación de como llegar hasta ese porcentaje
+
+				VIDEO 41 LABORATORIO - PROGRESS BAR PARTE DOS
+
+Antes de nada tengo que entender varios conceptos para poder calcular ese porcentaje:
+
+1º: clientHeight y clientWidth es el alto y ancho de la pantalla actual.Yo puedo tener una resolución de 1080 en alto pero tener sólo la ventana semi-desplegada.Este valor lo dictaminará el clientHeight.
+
+2º: scrollHeight: es todo el contenido HTML sobre el que se va a hacer scroll.Si por ejemplo veo 1000px y tengo otros 1000 ocultos el scrollHeight son los 2000,es decir,todo.Cualquier contenido scrollable tendrá este valor más alto que lo que puede ver,por eso sale el scroll.Lo que sobresalga estará oculto abajo.Simple.
+
+3º: scrollTop: el scrollTop es la altura actual sobre la que he hecho scroll.La suma del scrollTop y del clientHeight debe ser igual al scrollHeight.
+
+Para calcular pues este porcentaje fijate que si tengo un clientHeight de 600px y un scrollHeight de 900 tendré una zona de 300px oculta.Esa zona de 300 imagina que estoy a la mitad,es decir tengo un scrollTop de 150px.La operación es simple
+150/300=0.5 <- si lo multiplico por 100 me da 50%,es correcto pues estoy a la mitad del contenido scrollable.Perfecto.
+
+Con todo esto realmente es sencillo:
+/* función normalizadora */
+const calcularPorcentaje = () => {
+  const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+  return (scrollTop / (scrollHeight - clientHeight)) * 100;
+}
+
+/* stream de información */
+const scroll$ = fromEvent(document, 'scroll')
+  .pipe(
+    map( calcularPorcentaje ),
+    tap( console.log )
+  );
+
+scroll$.subscribe( (perc) => {
+  progressBar.style.width = `${perc}%`;
+});
+Fijate que queda bastante vistoso
+
+						VIDEO 42 OPERADOR REDUCE
+
+Básicamente el operador reduce hace lo mismo como operador que como método en JS.
+El operador reduce permite aplicar una función acumuladora a la emisiones emitidas por mi Observable
+
+reduce( (accumulator,currentValue) => accumulator + current, 0 )
+
+Recuerda que reduce primero acumula todo y despues emite un único valor,luego esperará a que se complete el Observable
+
+Además usaremos el operador take,el take va a completar el observable despues de la cantidad que yo especifique 
+
+* recuerda que la funciòn reduce  permite ejecutar una función acumuladora a un elemento iterable */
+const numbers = [1, 2, 3, 4, 5];
+const totalReducer = (acumulador: number, valorActual: number) => {
+  return acumulador + valorActual;
+}
+/* es buena práctica mejorar la legibilidad no metiendo todo en el body de la función */
+const total = numbers.reduce(totalReducer, 0);
+console.log(total);
+
+interval(1000)
+  .pipe(
+    take(5),
+    tap(console.log),
+    reduce(totalReducer,0)
+  )
+  .subscribe({
+    next: val => console.log(val),
+    complete: () => console.log('completed')
+  });
+Realmente puedo usar reduce como operador igual que la función,pero al juntarse con la programación reactiva y otros operadores sus posibilidades se amplían enormemente.
+
+					VIDEO 43 SCAN OPERATOR
+
+El operador scan es exactamente lo mismo que el operador reduce con una única diferencia,que es que cuando los valores son emitidos por mi Observable,inmediatamente son publicados,regresando el valor acumulado actual.
+
+En este caso,a diferencia del operador reduce(donde sumabamos 1,2,3,4y 5 y sólo emite 15 al final) el operador scan emitirá 1,3,6,10 y 15,es decir que emite 5 veces en vez de una.Interesante.
+
+NOTA:Fijate que cuando el Observable se complete no emitirá nada,pues el acumulado ya lo emitió la última emisión,aqui también difiere del reduce que era en el complete donde se emite(seguro ??)
+
+const numeros = [1, 2, 3, 4, 5];
+
+const totalAcumulador = (acc:number,cur:number) => acc + cur;
+
+
+/* ejercicio con reduce: UNA ÚNICA EMISIÓN*/
+from(numeros)
+  .pipe(
+    reduce(totalAcumulador),
+  )
+  .subscribe({
+    next: val => console.log('next:', val),
+    complete: () => console.log('complete')
+  });
+/* forma con scan ,emisión por cada iteración */
+of(...numeros)
+  .pipe(
+    scan(totalAcumulador),
+  )
+  .subscribe({
+    next: val => console.log('next:', val),
+    complete: () => console.log('complete')
+  });
+
+Puedo ver de nuevo que por cada acumulación emite el valor.Esto es sumamente útil
+
+Veamos un ejemplo simulando la forma de trabajar del patrón de estado redux:
+
+  /* Redux mock */
+  interface Usuario {
+    id?:string;
+    autenticado?:boolean;
+    token?:string;
+    edad?:number;
+  }
+
+  const users: Usuario[] = [
+    {id: 'fher', autenticado: false, token: null},
+    {id: 'fher', autenticado: true, token: 'ABC'},
+    {id: 'fher', autenticado: true, token: 'ABC123'},
+  ];
+
+const state$ = from(users).pipe(
+  scan<Usuario,Usuario>( (acc,cur) => {
+    return { ...acc, ...cur } <- recuerda romper referencias
+  },{edad:33}));
+const id$ = state$.pipe( map( state => state)) <- no hacia falta este map,asin
+id$.subscribe(console.log):
+
+Puedo ver que la salida es el patrón redux.Interesantisímo!
+{edad: 33, id: 'fher', autenticado: false, token: null}
+{edad: 33, id: 'fher', autenticado: true, token: 'ABC'}
+{edad: 33, id: 'fher', autenticado: true, token: 'ABC123'}
+
+Fijate que veré cada cambio en el estado.Sin embargo tendría que limitar la salida si el valor SI CAMBIÓ.Esto lo veremos más adelante,como emitir sólo si el valor de emisión es diferente al anterior(fijate que el id siempre es el mismo).
+
+					SECCION 06 OPERADORES MENOS COMUNES
+
+Vamos a ver operadores como el take,takeWhile,takeUntil, distinctUntilChanged y alguno más.Son operadore menos usados pero también muy útiles en situaciones concretas.
+
+Operadores no tan comunes, aunque este término es relativo porque sé que muchos de ustedes usan estos operadores todos los días, quiero agruparlos como la segunda categoría de operadores para aprender.
+
+Los temas principales son los siguientes operadores:
+
+1- take
+2- first
+3- takeWhile
+4- takeUntil
+5- skip
+6- distinct
+7- distinctUntilChanged
+8- distinctUntilKeyChanged
+
+Espero que en todas las secciones no sólo aprendamos Rx, sino que también un poco de JavaScript y TypeScript!
+
+						VIDEO 47 OPERADOR TAKE
+
+El operador take(number) es sumamente útil cuando quiero limitar la cantidad de emisiones que un Observable puede tener.
+Si tuviera un Observable que emitiera a,b,c,d y e y uso take(2) sólo emitirá a yb y,ojo,take hace terminar la Subscription(pero no al Observable)
+
+Veamos un ejemplo muy sencillo:
+
+const numeros$ = of(...[1,2,3,4,5]);
+
+numeros$.pipe(
+    tap(console.log),
+    take(3)
+).subscribe({
+    next: val => console.log('next:', val),
+    complete: () => console.log('complete')
+})
+IMPORTANTE: si le paso un valor demasiado alto tomará el máximo,pero no da error.Además,recuerda que cancela la Subscription,asi que el tap sólo mostrará 3 valores también.Muchas personas usan el take(1) para asegurarse que sólo toman una emisión
+
+						VIDEO 48 OPERADOR FIRST 
+
+El operador first(predicate?:null) sin argumentos tomará el primer valor y completará la subscription.Es como un take(1).
+Pero puede recibir argumentos,que serán una condición boleana:
+first(x => x >= 10) <- en cuanto x sea 10 o mayor se completará el Observable.
+Veamoslo en código mejor:
+
+const click$ = fromEvent<PointerEvent>(document, 'click');
+
+
+/* first(predicate?=null) tomará el primer valor sin argumentos en él o el primer valor que coincida con ese predicado */
+click$.pipe(
+  // first() toma el primero y cancela la Subscription
+  tap<PointerEvent>(console.log),
+  // también puedo pasarle una condición
+  first(event => event.clientY >= 150)
+).subscribe({
+  next: (event) => console.log('click', event.clientX, event.clientY),
+  complete: () => console.log('complete')
+});
+
+Puedo ver que first(args) con un predicate como argumento no emitirá ningun valor hasta que se cumpla esa condición,y que cuando se cumpla emitirá uno y cancelara la Subscription.Puede servirme para asegurarme que sólo cogo un valor cuando se cumpla cierta condición
+
+Ahora Fernando dará un pequeño tip para usar desestructuración,y es usar map.Fijate que además haber usado tap<PointerEvent> me dió tipado en todo el pipe:
+
+click$.pipe(
+  // first() toma el primero y cancela la Subscription
+  tap<PointerEvent>(console.log),
+  /* puedo usar map para desestructurar */
+  /* map(event => ({
+    clientY: event.clientY,
+    clientX: event.clientX
+  })), */
+  map( ({clientY, clientX}) => ({clientY,clientX }) ),
+
+* Incluso puedo resumir la primera forma desestructurando en los args,etc...Fijate que la clave es devolver un objeto con lo que yo quiero y que tap<T> como primera instrucción me ayudó muchísimo.
+
+					VIDEO 49 TAKEWHILE
+
+El operador takeWhile(predicate,inclusive?=false) permite recibir valores mientras la condicion de su argumento se cumpla.Imagina algo tan sencillo como
+takeWhile(x => x <4) 
+Y el observable es from([1,1,2,3,2,3,4,5,6)
+Es obvio que tomará 1,1,2,3,2 y 3 y se completará
+
+Puedo mandar un segundo argumento en el que recibiré 'inclusive' el valor que hace que rompa la cadena,es decir,que evalue a false el predicate por primera vez.
+Veámoslo en código:
+
+click$.pipe(
+  tap<PointerEvent>(),
+  map<PointerEvent,CustomType> ( ({x,y}) => ({x, y})), 
+  // takeWhile( (custom:CustomType) => custom.y <= 150)
+  takeWhile( (custom:CustomType) => custom.y <= 150, true)
+).subscribe({
+  next: val => console.log('next', val),
+  complete: () => console.log('complete')
+})
+Realmente es bastante simple,emitirá valores mientras la condición se cumpla,además me puede devolver el primer valor que rompió esa condición.Interesantisímo
+
+next {x: 309, y: 45}
+next {x: 421, y: 87}
+next {x: 388, y: 129}
+next {x: 357, y: 158} <- con el 2º arg a true me da también el que rompe el predicate
+complete
+
+						VIDEO 50 TAKE UNTIL
+
+Es el primer operador que voy a usar en el cual recibe como argumento otro Observable.Imagina dos Observables,un interval$ y otro click$,uno es un interval y el otro un fromEvent para el click.
+Si tengo un takeUntil(click$) significa que recibiré valores hasta que ese Observable emita algo(da igual qué o si iba a emitir muchos valores,la subscription se cancela).Básicamente es como decir recibe todos los valores de los Observables hasta que X observable emita algo.
+
+Veámoslo en código mejor.
+
+const button = document.createElement('button');
+button.innerText = 'Detener Timer';
+
+/* no hace document.body para no tener a body por referencia */
+document.querySelector('body').appendChild(button);
+
+const interval$ = interval(1000);
+const clickBtn$ = fromEvent(button, 'click');
+
+interval$.pipe(
+    takeUntil(clickBtn$)
+).subscribe({
+    next: val => console.log('next: ', val),
+    error: null,
+    complete: () => console.log('complete')
+});
+
+Fijate que es mas interesante de lo que parecía,pues puedo cancelar una subscription al pulsar un botón,por ejemplo.Muy interesante.
+
+					VIDEO 51 OPERATOR SKIP
+
+El operador skip es bastante sencillo y me permite saltar las primeras X emisiones de un Observable.Si por ejemplo tengo un Observable que emite a,b,c y d y le aplico skip(3) voy a omitir sus tres primeras salidas con lo que sólo recibiré 'd'.
+
+const clickBtn$ = fromEvent(button, 'click').pipe(
+  tap(() => console.log('tap antes de skip')),
+  skip(1),
+  tap(() => console.log('tap despues de skip')));
+
+					VIDEO 52 OPERATOR DISTINCT
+
+El operador distinct(predicate?) deja pasar únicamente los valores que no han sido previamente ya emitidos por mi Observable,es decir,que no emite valores repetidos.
+Vale la pena recalcar que usa el operador triple igual para comparar
+
+const numeros$ = of(1,'1',2,3,3,4,2,2,4,4,5,1)
+/* el operador distinct no deja pasar cualquier valor que ya haya sido emitido,es decir,emite sólo los valores distintos.Usa triple igual para comparar */
+numeros$.pipe(
+    distinct()
+).subscribe(console.log)
+
+interface Personaje {
+    nombre: string;
+}
+
+/* sin embargo,este operador si coge fuerza a la hora de comparar los valores de una propiedad,es decir,coge fuerza cuando lleve argumento */
+const personajes: Personaje[] = [
+    {
+        nombre: 'Megaman'
+    },
+    {
+        nombre: 'X'
+    },
+    {
+        nombre: 'Zero'
+    },
+    {
+        nombre: 'Megaman'
+    },
+    {
+        nombre: 'Zero'
+    }
+]
+
+from(personajes).pipe(
+    distinct(p => p.nombre)
+).subscribe(console.log)
+* Puedo observar que el operador distinct(args?) toma fuerza cuando se le pasa un Predicate como argumento,pudiendo comparar los valores de una propiedad,por ejemplo.
+
+				VIDEO 53 DISTINCT UNTIL CHANGES
+
+Bien,pero,¿como podría decirle a mi Observable que me interesan sólo los valores siempre y cuando la emisión anterior no sea igual?
+El operador distinctUntilChanged(comparator?) es muy parecido al operador anterior distinct pero el distinctUntilChanged emite valores siempre y cuando la emisión anterior no sea la misma.
+
+numeros = [1,'1',2,3,2,2,4,4]
+numeros$.pipe(
+    distinctUntilChanged() // ===
+).subscribe(console.log) <- dará 1,'1',2,3,2,4
+
+Además,su argumento no es un Predicate:boolean si no que es una función compare(a,b) asi que cambia mucho cuando se use su  argumento.
+
+from(personajes).pipe(
+    distinctUntilChanged((a,b) => a.nombre === b.nombre)
+)
+Simplemente implementa Comparable en vez de Predicate.
+
+				VIDEO 54 OPERATOR DISTINCTUNTILKEYCHANGED
+
+Comprender el operador distinctUntilKeyChanged(key) es muy sencillo.Suponiendo que tengo un Observable que está emitiendo valores en forma de Object {k:1},{k:2}... este operador va a estar pendiente de esta propiedad 'k'(de la que le mande como argumento
+Si esa propiedad emite el mismo valor no va a pasar a la Subscription,es decir que mientras una propiedad esté emitiendo valores diferentes irán pasando todos.Fijate que mira por emisiones consecutivas,es decir que la emision 1 y 3 pueden tener el mismo valor para esa key dada.
+
+from(personajes).pipe(
+    distinctUntilKeyChanged('nombre')
+).subscribe(console.log)
+
+				SECCION 07 OPERADORES RELACIONADOS CON EL TIEMPO
+
+En esta sección vamos a ver operadores sólo relacionados con el tiempo,como debounceTime:.
+Entramos a los operadores del tiempo, los cuales se enfocan en trabajar de alguna manera con intervalos de tiempo.
+
+Los temas principales son los siguientes operadores:
+
+1- debounceTime
+2- throttleTime
+3- sampleTime
+4- sample
+5- auditTime
+
+Aunque hay más operadores que podemos colocar en esta categoría, tienen las bases para poder investigarlos si así lo necesitan.
+
+					VIDEO 58 DEBOUNCETIME OPERATOR
+
+El debounceTime(milis:number) emitirá el último valor que emitió el Observable al de X tiempo.
+El debounceTime me va a ayudar a restringir la cantidad de emisiones que nuestro Observable emite.Es muy útil.Es importante entender como funciona:
+
+Si tengo un Observable que emite inmediatamente 'a' yo con un debounceTime(1000) voy a recibir 'a' al de 1 seg.Si ese Observable despues emite 'b' y 'c' en menos de un segundo yo,al de otros 1000ms voy a recibir 'c',es decir voy a perder 'b' por el camino.
+
+NOTA:este operador es sumamente útil para controlar Observables que emiten una gran cantidad de valores en muy poco tiempo,regulando esa cantidad.
+
+const click$ = fromEvent(document,'click');
+click$.pipe(
+    debounceTime(3000)
+).subscribe(console.log);
+
+ NOTA: Angular en su módulo ReactiveFormsModule para usar Formularios Reactivos ya tiene propiedades que devuelven Observables.Puedo subscribirme a los cambios de un control de un Formulario Reactivo con control.valueChanges:Observable dado que valueChanges retorna un Observable:
+
+El control se llama control01,asinto.Imagina este form y este control
+myForm:FormGroup = this.fb.group({
+  control01:['',Validators.required]...
+
+Puedo subscribirme al valueChanges de un control cualquiera en Angular y esperar un poco con debounceTime o auditTime,etc
+this.control01.valueChanges.pipe( debounceTime(200) ).subscribe(console.log) 
+
+Volviendo al tema,subscribirme a un input es el lugar ideal para usar debounceTime y esperar un poco por la emisión:
+
+const input$ = fromEvent<KeyboardEvent>(input,'keyup');
+
+input$.pipe(
+    debounceTime(100),
+    pluck('target','value'),
+    distinctUntilChanged()
+).subscribe(console.log);
+
+Además,puede que haga incluso peticiones al servidor con ese input,no tiene sentido dispararla inmediatamente.Y adicionalmente es un lugar ideal para usar distinctUntilChanged() también.
+
+					VIDEO 59 OPERADOR THROTTLETIME
+
+El throttleTime(milis:number) es un operador muy parecido al debounceTime,pero funciona un poco diferente.Emite el valor del Observable y despues espera X tiempo.Es mejor ver la explicación.
+Imagina un Observable que emite 'a'.El throttleTime(1000) lo va a dejar pasar inmediatamente,es decir se va a emitir inmediatamente,y despues va a esperar 1000ms(fijate que aquí cambió con el debounceTime.
+
+Si el Observable emitiiera más valores en ese segundo el throttleTime los va a ignorar todos.Tambíen tiene una forma para recoger sólo el primero y el último.
+Puedo ver que es igual que debounceTime solo que emite el primero y espera en vez de esperar y emitir el último.
+NOTA: se pronuncia zrotol(throttle).
+
+IMPORTANTE: el throttleTime emitirá el siguiente valor despues de ese tiempo.Pero no emite el último automáticamente,sino que se pone a la escucha,es decir que me garantiza que durante 3  segundos sólo emitiré un valor,y durante los proximos tres siguiente no emitira nada.Despues,cuando pasen esos tres segundos emitirá el siguiente que reciba a partir de que esté receptivo
+
+const click$ = fromEvent(document,'click').pipe( throttleTime(3000) ).
+
+* En la mayoria de casos dará igual usar uno u otro,pero tienen distintas features todos los operadore de tiempo.
+input$.pipe( 
+  throttleTime(100),
+  pluck('target','value'),
+  distinctUntilChanged() 
+).subscribe(console.log);
+
+Imagina que tengo un servicio enlazado a ese input que hace consultas y devuelve información muy rápido.Obviamente no quiero disparar las consultas en cada pulsación.Hay una manera de configurar el throttleTime para que me regrese tanto el primero como el último:
+
+input$.pipe( 
+   throttleTime(1000,asyncScheduler,{
+    leading: false,
+    trailing: true
+  }), 
+  pluck('target','value'),
+  distinctUntilChanged() 
+).subscribe(console.log);
+
+Fijate que esta opción es sólo para el throttleTime,esta configuración puede ser incluso más útil para un input de busquedas a una API
+
+					VIDEO 60 SAMPLE-TIME OPERATOR
+
+El operador sampleTime me permite obtener el último valor emitido en un intervalo de tiempo.
+Si por ejemplo lo ponemos a un segundo y en ese segundo se emite a,b y c saldrá c hacia el subscriber.Si despues se emite solo b saldrá b,si despues no se emite nada no emitirá nada(pero sigue escuchando),si despues se emite a y b emitirá b,etc...
+Es decir emite el último valor en un intervalo de tiempo dado(o ninguno si no se le pasa nada).
+
+NOTA:fijate que realmente es mejor primero esperar con el sampleTime y despues transformar con el map:
+
+const click$ = fromEvent<PointerEvent>(window, 'click');
+
+click$.pipe(
+  sampleTime(2000), <- mejor filtro en vez de mapear todos 
+  map( ({x,y}) => ({x,y}) ),
+).subscribe(console.log);
+
+Recuerda que siempre debo filtrar y despues transformar asi no transformo todo.
+Parece igual que el debounceTime.
+
+			VIDEO 61 OPERADOR SAMPLE
+
+El operador sample(ObservableY) emite el último valor emitido por el Observable Xsobre el que estamos operando cuando el ObservableY emita un valor.No llama al complete.Ejemplo:
+El interval$ emite 1 y tiene el pipe( sample(click$) ) sobre el click de un boton.Si hago click recibiré ese 1(pero no cancelo a interval$).
+Ese interval sigue emitiendo, 2,3,4,5... en cuanto haga otro click recibiré el último valor de ese primer Observable.Puede ser útil.
+
+Si click$ emite un valor pero el interval$ no ha emitido nada aún,simplemente no recibo nada.Por último se cancelará mi subscription cuando el Observable interval$ se cancele(pues es al que estoy suscrito.
+
+const interval$ = interval(1000);
+
+const h2 = document.createElement('h2');
+h2.textContent = 'Testing sample';
+document.querySelector('body').appendChild(h2);
+
+const button = document.createElement('button');
+button.textContent = 'Click me';
+document.querySelector('body').appendChild(button);
+
+const click$ = fromEvent(button, 'click');
+
+interval$.pipe(
+  sample(click$)
+).subscribe(console.log);
+
+Básicamente este operador es como tomar una muestra del Observable al que estoy suscrito,realizando una acción como un click.Puede ser interesante también.
+Recuerda que el Observable interval$ tiene que haber emitido un valor para que pueda recoger esa muestra,sino no recibo nada.
+
+					VIDEO 62 AUDIT TIME
+
+El operador auditTime(milis) emite el último valor que ha sido emitido por el Observable en un periodo de tiempo determinado.Fijate que sampleTime es muy parecido pero no igual,ya que espera esos milisegundos pero no emite el último valor,sino que emite el siguiente y espera.AuditTime emite el último en un intervalo dado.
+
+Imagina que un Observable emite a,x e y en dos segundos.Yo estoy suscrito con un auditTime(2000).Asi que al de dos segundo se emitirá y.Despues emite b y x,al de dos segundos se emitirá x.Despues se emite c y se completa antes de los dos segundos,asi que no habrá salida.
+En cuanto se complete el Observable se completa la subscription.
+
+const h1 = document.createElement('h1');
+h1.innerText = 'auditTime operator';
+document.body.appendChild(h1);
+
+const click$ = fromEvent(document, 'click');
+
+click$.pipe(
+    tap(val => console.log('tap', val)),
+    auditTime(2000)
+).subscribe(console.log);
+
+Puedo ver que este operador lo que hace es emitir el valor más actual(el último) de mi Observable tras X tiempo.Además lo hace sólo.Es como un cronómetro.Muy útil
+
+				SECCION 08 PETICIONES AJAX USANDO RxJs/Ajax	
+
+RxJs(y en general la programación reactiva) ya me provee de una forma para hacer peticiones Ajax de manera que éstas peticiones regresen Observables y me permita conectar mi flujo de operadores a esa petición que ya es un Observable.
+
+Podrá hacer todo tipo de peticiones(POST,PATCH,PUT,DELETE,...),se pueden configurar los headers,...básicamente puedo hacer todo.
+
+Estamos entrando a la parte de la librería de RXJS enfocada en peticiones Ajax. Aquí no sólo trabajaremos con funciones propias para realizar llamadas HTTP, sino que también configuraremos headers y trabajaremos con las respuestas.
+
+Los temas principales de esta sección son:
+
+1- Conceptos básicos de una petición ajax
+2- Manejo de errores
+3- Fetch API
+4- getJson
+5- Ajax
+6- Diferencia entre getJson y Ajax
+7- PUT, POST, DELETE, GET
+
+Espero que muchos de ustedes vean el potencial que esta librería tiene, sin contar que se le suman todos los operadores que hemos visto hasta el momento.
+
+		VIDEO 66 CONCEPTOS GENERALES DE UNA PETICIÓN AJAX USANDO LA FETCH API
+
+Fernando comenta que cuando grabó el video la fetch API tenia ciertas ventajas y desventajas a usar ajax con rxjs.Incluso aunque ha evolucionado mucho aún debería haber ciertas diferencias y beneficios en usar el paquete ajax de rxjs.
+
+Recuerda que fetch API trabaja en base a Promesas y Streams de información.Esto es algo que no hace rxjs/ajax.
+
+Además no puedo cancelar una Promesa,esto es algo que si que puedo hacer con un Observable,asi que podría cancelar una request si uso Observables(y cancelar una Promesa es algo que no se ve en el horizonte aún)
+
+Imaginemos este ejemplo sencillo:
+const url = 'https://api.github.com/users/oscargm40';
+const fetchPromesa = fetch(url);
+
+fetchPromesa
+  .then(response => response.json())
+  .then(data => console.log(data))
+  .catch(console.error);
+
+Bien,primero puedo observar que yo no tengo control,no puedo cancelar esa primera promesa.Además,tengo que usar otra para leer el ReadableStream.
+
+Y además,que pasaría si la url está mal?
+
+			VIDEO 67 MANEJO DE ERRORES CON EL FETCH API
+
+De echo,incluso tengo que lanzar yo los errores ya que si los lanza la APi no tiene un buen control de errores implementado(supongo):
+
+const fetchPromesa = fetch(url); // no cancelable
+
+/* además para manejar errores incluso tengo que ayudar a la API,haciendo el código incluso más extenso de lo que lo es */
+const manejaErrores = (response: Response) => {
+  if (!response.ok) {
+    throw new Error(response.status+"");
+  }
+  return response;
+}
+
+/*otra desventaja es que me devuelve un body de tipo Readable Stream, y para procesar ese flujo de datos tengo que ejecutar otra promesa  */
+
+fetchPromesa
+  .then(manejaErrores) //recuerda que el primer arg pasa sólo,en este caso pasa la respuesta sóla al método
+  .then(response => response.json())
+  .then(data => console.log(data))
+  .catch(err => console.error('error en el fetch',err));
+
+HttpClient de Angular es una implementacion que hace el Framework de Ajax, optimizandolo para Angular en particular.  Cuando usas los metodos de HttpClient, en el fondo debes estar usando Ajax con algunos condimentos extras.
+Al usar Angular no necesito usar el objeto ajax de rx,ya está todo implementado en el módulo HttpClientModule.
+
+		VIDEO 68 PETICION USANDO OBJETO AJAX DE RX + catchError operator
+
+Veamos como realizar una petición mediante el objeto ajax de rxjs.Fijate que en la propiedad response ya me viene todo.Asi que un pipe con un pluck o un map irá perfecto:
+
+import { ajax } from 'rxjs/ajax';
+ajax( url ).pipe(pluck('response')).subscribe(console.log); 
+
+No solo es asi de fácil,sino que rxjs me provee de otro operador para manejar los errores.Se trata del operador catchError:
+
+El catchError se va a poner en medio de cada petición,siempre que no suceda un error la información simplemente fluirá de forma normal.En el momento que suceda un error puedo hacer varias cosas con este operador,como por ejemplo emitir otro Observable,o simplemente emitir un string.
+
+Es importante entender que puedo hacer muchas cosas con el catchError.
+NOTA:el catchError tiene que retornar un nuevo Observable o un Error
+
+ajax( url ).pipe(
+  pluck('response'),
+  /* catchError tiene que retornar un Error o un Observable */
+  catchError((err) => { throw new Error(err) }))
+.subscribe(console.log);   
+
+ajax( url ).pipe(
+  pluck('response'),
+  /* catchError tiene que retornar un Error o un Observable */
+  catchError((err) => { 
+    /* pero puedo incluso devolver algo que me venga bien */
+    // throw new Error(err) 
+    return of([])
+  }))
+.subscribe( (users) => console.log('usuarios', users));  si tengo error me vendrá un arreglo vacío
+
+Más adelante veremos como cancelar la petición si se lanza una nueva al mismo endpoint.
+
+						VIDEO 69 getJSON
+
+En este video vamos a ver esa forma más corta que dijo Fernando para hacer una petición sin usar el objeto ajax de rxjs.
+
+Con el método ajax.getJSON(url,options?:{}) puedo obtener la respuesta sin tener que usar pluck o map.Además le puedo pasar un segundo argumento opcional con los headers a enviar:
+
+import { ajax } from 'rxjs/ajax';
+
+* Esta API permite poner un delay a la petición,es para pruebas as dev.
+const url = 'https://httpbin.org/delay/1';
+
+const obs$ = ajax.getJSON(url)
+.subscribe(data => console.log('data', data));
+
+Puedo ver que me trae todo.Bien,y si quiero enviar headers?:
+const obs$ = ajax.getJSON(url,{
+   'Content-Type':'application/json',
+   'mi-token':'123'
+} 
+
+				VIDEO 70 DIFERENCIAS ENTRE AJAX Y AJAX.GETJSON
+
+Puedo ver de nuevo que la diferencia entre usar ajax y ajax.getJSON es que el segundo entra hasta la respuesta(seguramente haga el toJSON y no valga para fotos,etc...)
+obs$.pipe(
+  catchError(manejaError)
+).subscribe(data => console.log('getJSON', data));
+obs$2.pipe(
+  catchError(manejaError)
+).subscribe(data => console.log('ajax', data));
+
+Por último,vamos a ver la diferencia entre catchError y coger el error en el observer.error:
+obs3$.pipe(
+  catchError(manejaError)
+).subscribe({
+  next: val => console.log('next', val),
+  error: err => console.warn('error from observer.error', err),
+  complete: () => console.log('complete')
+});
+
+* Si hiciera esto fijate que el catchError entra primero,coge el error y devuelve un nuevo Observable(of('Error gordo').Asi que para el observer.next llega este of() y es un Observable válido,asi que imprime su valor y se completa:
+next Error gordo
+index.ts:23 complete
+
+				VIDEO 71 METÓDOS PUT,POST Y DELETE
+
+Ajax permite realizar este tipo de peticiones.Realmente es muy sencillo,es como axios o fetch:
+/* GET ajax.get(url,headers) */
+ajax.get(url);
+
+/* POST ajax.post(url,body,headers */
+ajax.post(url, {
+  username: 'mosh',
+  password: 'thisIsMyPassword'
+}, {
+  'Content-Type': 'application/json',
+  'Authorization': 'sometoken'
+}).subscribe(console.log);
+
+/* PUT ajax.put(url,body,headers) */
+ajax.put(url, {
+  username: 'mosh',
+  password: 'thisIsMyPassword'
+}, {
+  'Content-Type': 'application/json',
+  'Authorization': 'sometoken'
+}).subscribe(console.log);
+
+/* DELETE ajax.delete(url,headers) Recuerda que una petición delete no permite mandar nada por el body(y una GET?) */
+ajax.delete(url, {
+  'Content-Type': 'application/json',
+  'Authorization': 'sometoken'
+}).subscribe(console.log);
+
+Genial.De igual forma que con axios o fetch puedo no usar el verbo(pudiendolo pasarlo como argumento) y configurar una petición reusable.Ejemplo:
+
+/* puedo no usar el verbo y configurar la peticion,como con fetch o axios.Genial */
+ajax({
+  url,
+  method: 'DELETE',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': 'sometoken'
+  }
+}).subscribe(console.log);
+Fijate que axios o fetch pueden hacer lo mismo.Podria pasar el método como argumento y tengo una petición super-reusable.Genial.
+
+
+
+NOTA: cuando vaya a linkear un archivo TS a un index.html hay que usar el atributo module:
+ <script type="module" src="./src/index.ts"></script>

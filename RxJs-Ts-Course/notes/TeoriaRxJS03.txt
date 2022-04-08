@@ -1,0 +1,666 @@
+						SECCION 09 OPERDORES DE TRANSFORMACIÓN
+
+Vinos en la sección anterior (ajax), que existe la necesidad de subscribirse al producto de un observable, para poder obtener la información que necesitamos, lo cual lleva a que perdamos control de la legibilidad de nuestro código y la facilidad de trabajar con observables y operadores...
+
+Por suerte, el equipo de ReactiveX pensó en esto y nos ayuda con las siguientes funciones y operadores:
+
+1- mergeAll
+2- mergeMap
+3- switchMap
+4- concatMap
+5- exhaustMap
+
+Aquí tendremos formas muy interesantes de poder trabajar con el concepto del aplanamiento, que veremos y explicaré más adelante en esta sección.Genial
+
+VIDEO 75 INTRODUCCION AL PROBLEMA ,CONCEPTO DE APLANAMIENTO Y NECESIDAD DE OPERADORES DE TRANSFORMACIÓN
+
+NOTA,si bien ajax solo puede tratar un json directamente puedo traerme lo que quiera con el objeto ajax de rxjs y despues tratar ese buffer de binarios:
+
+import { ajax } from 'rxjs/observable/dom/ajax';
+
+ajax({
+  url: 'https://proxy.apisandbox.msdn.microsoft.com/svc?url=https%3A%2F%2Fgraph.microsoft.com%2Fv1.0%2Fme%2Fphoto%2F%24value',
+  headers: { 'Authorization': 'Bearer {token:https://graph.microsoft.com/}' },
+  responseType: 'arraybuffer'
+})
+  .subscribe(res => {
+    console.log(res);
+    const buffer = res.response;
+    const blob = new Blob([buffer], { type: 'image/jpeg' });
+    const url = URL.createObjectURL(blob);
+    const img = document.createElement('img');
+
+    img.src = url;
+    document.body.appendChild(img);
+  });
+En este ejemplo se crea un blob mediante la clase Blob([binaries],{options}) crea una url temporal con URL.createObjectURL(blob) y la pinta manipulando el DOM.
+
+Volviendo al vídeo,imaginemos un simple input que rescata un valor y haremos una petición ajax con ese valor.
+/* Streams de información */
+const input$ = fromEvent<KeyboardEvent>(textInput, 'keyup');
+
+/* Bien imaginemos que quiero rescatar el valor de ese input y hacer una petición ajax para ver cuantos repos coinciden con ese término.Puedo apreciar como esto crece desmesuradamente y necesito de mejores formas para transformar la información y aplanarla hasta lo que yo quiero */
+input$.pipe(
+  debounceTime(500),
+  map( event => {
+    const texto = (event.target as HTMLInputElement)['value']; 
+    return ajax.getJSON(
+      `https://api.github.com/users/${texto}/repos`
+    )
+  })
+  ).subscribe( resp => {
+    resp.subscribe(console.log);
+  });
+
+/* La solución son los operadores de transformación,los cuales permiten poder transformar el Observable completamente o bien cambiar la emisión para que nosotros podamos unificar los Observables o las emisiones de los mismos para así simplificar el código */
+
+NOTA: no me valía con usar <KeyboardEvent> porque hay que decirle explicitamente a TS que tipo de elemento HTML se trata,ya que las propiedades del event.target cambian según el elemento que sea.Hay que castear del tipo genérico al tipo del que se trate el elemento, en este caso es un HTMLInputElement.:
+const texto = (<HTMLInputElement>event.target).value 
+ó bien
+const texto = (event.target as HTMLInputElement).value;
+
+Al final queda claro que debo usar operadores de transformación para cambiar un observable completamente o sus emisiones.
+
+					VIDEO 76 MERGEALL OPERATOR
+
+Este operador es el primero que veré,sirve para trabajar con Observables que internamente retornan Observable.
+Si tengo un Observable root imagina que ese Observable emite Observables(es la condición base).Al emitir el primer Observable se crea como una branch,una linea del tiempo en el que ese Observable Hijo A puede emitir sus valores(imagina que emite a,b y c).
+Más adelante el Observables root emite el Observable Hijo B.Esto crearía otra rama temporal en la que ese Observable puede emitir,imaginemos que emite 'e'.
+Bien,pues el operador mergeAll lo que hace es suscribirse a todos los Observables,al root y a los hijos y a sus emisiones(a todas).
+El operador mergeAll sabe cuantas suscripciones tiene internamente,todo lo maneja él.Asi pues tendría una emisíon de a,b,c y e.
+Obviamente recoge las emisiones de forma secuencial,da igual quén emita,el que emita él lo recoge.
+Hasta que no se complete el último de los Observables no se completa la suscripción.Veamos un ejemplo más práctico.
+
+Este concepto de unificar Observables en una sóla salida se conoce como flattening Operator u Operador de aplanamiento.
+
+input$.pipe(
+  debounceTime(500),
+  pluck('target','value'),
+  map( texto => ajax.getJSON(
+      `https://api.github.com/search/users?q=${texto}`
+    )),
+  mergeAll(), //aún está dentro del pipe
+  pluck('items'),
+).subscribe(console.log);
+
+Fijate que usó el mergeAll justo despues del map.Aún tenemos el problema que al mergeAll le llego unkown y por tanto tengo la respuesta como unkown:
+).subscribe( r => console.log(r)); <- podríamos crearnos una interfaz pero no es la mejor solucíón.
+
+					VIDEO 77 TIPANDO LOS OPERADORES
+
+Siempre hay que especificar el tipo de dato que fluye a través de un operador.Veamos que puedo hacer:
+
+1- Si dejo el cursor sobre el debounceTime veo que es debounceTime<KeyboardEvent>.Aqui no tengo que hacer nada,porque ya sé que recibo y este operador no lo transforma.Aún asi lo vamos a indicar:
+input$.pipe(
+ debounceTime<KeyboardEvent>(500),
+
+2- En el pluck<T,R> veo que debo indicar lo que entra y sale,como el map.En nuestro caso quedará pluck<KeyboardEvent,string) ya que sabemos que es un string.
+NOTA: esta función está obsoleta,es mejor usar map.
+map<KeyboardEvent,string>( event => (event.target as HTMLInputElement)['value']),
+
+3- el siguiente map veo que recibe un string,pero no se sabe qué regresa(
+Png, Observable<unknown>>) aparte que sé que regresa un Observable,dado que llamo a ajax y ajax devuelve un Observable:
+ map<string,Observable<any>>( texto => ajax.getJSON(
+      `https://api.github.com/search/users?q=${texto}`
+    )),
+Bien,vamos a quitar ese any.De entre varias posibilidades voy a quicktype.io y hago una petición a al url del ajax operator.Saco los tipos y cambio el genérico.
+map<string,Observable<GithubUsersResponse>(texto => ajax.getJSON(xxx))
+
+4- Bien,al mergeAll puedo ver que le llega un Observable<GithubUsersResponse> ,claro,es el ajax el que le llega:
+mergeAll<Observable<GithubUsersResponse>>(),
+
+5- Al siguiente pluck ya lo cambio por el map y le llega esta response y emite un arreglo de GithubUser[]:
+map<GithubUsersResponse,GithubUser[])(item => item.items)
+
+Y desde ahora ya tengo acceso en la respuesta a las propiedades de un GithubUser.Genial. 
+
+							VIDEO 78 MERGE-MAP OPERATOR
+
+La función mergeMap es otro operador de aplanamiento.En la función interna del mergeMap va a recibir el valor que sea emitido de nuestro Observable inicial y está regresando un nuevo Observable.
+
+Para refrescar la memoria,los operadores de aplanamiento cuando ven que retornan un Observable realmente no van a transferir ese Observable como tal al subscriber,lo que retornan es el valor producto de la suscripción interna a ese Observable,en pocas palabras retornan sus emisiones.
+
+El mergeMap no tiene limite de suscripciones(igual que el mergeAll).Todas ellas pueden estar activas simúltaneamente también.
+
+Viendolo en el diagrama de canicas imaginemos que el Observable source$ emite el valor de 'a',esto no es muy importante,pero al pasar por el mergeMap emitiré un nuevo Observable(siempre mediante una callback que retorna ese Observable).
+
+NOTA:fijate que este operador debe retornar un Observable en su callback y no retorna los valores del primer Observable source$ sino que al emitir un valor un Observable A se crea una suscripción a un Observable B(pero no emite lo de A)
+
+Asi pues la salida sería ese Observable(más bien su suscripción,ya que internamemte me autosuscribo a ellos al usar operadores de aplanamiento).Ese Observable interno retornado puede emitir desde un primer momento valores y nuestro mergeMap los emitirá automáticamente mediante esa auto-suscripcion.
+
+La manera de completar este grupo de Observables es esperar a que se completen todos los Observables.De nuevo no vale con que se complete el Observable source$(a no ser que no cree hijos).En cuanto cree Observables hay que esperar al complete del último de ellos.Veamos todo esto en código.
+
+Imaginemos algo tan sencillo como esto:
+
+const letras$ = of('a', 'b', 'c');
+
+letras$.subscribe({
+    next: (letra) => console.log('next:', letra),
+    complete: () => console.log('complete')
+});
+
+Con esto + mergeMap puedo hacer algo asi:
+letras$.pipe(
+  mergeMap( (letra) => interval(1000).pipe(
+    map( num => letra + ' ' + num),
+    take(3))))
+.subscribe({
+  next:letra => console.log(letra),
+  complete: () => console.log('completed')});
+
+La salida será ésta:
+index.ts:7 next: a0
+index.ts:7 next: b0
+index.ts:7 next: c0
+index.ts:7 next: a1
+index.ts:7 next: b1
+index.ts:7 next: c1
+index.ts:7 next: a2
+index.ts:7 next: b2
+index.ts:7 next: c2
+index.ts:8 
+
+/* fijate que fácil sería comprobar cuanto tiempo he mantenido pulsado el mouse.Necesito tres Observables(para el inicio,la condición de fin y el conteo) Genial.*/
+const mouseDown$ = fromEvent(document, 'mousedown');
+const mouseUp$ = fromEvent(document, 'mouseup');
+const interval$ = interval(); //un interval vacio se emite cada milisegundo,dejarlo vacio o usar interval(1) es lo mismo
+
+mouseDown$.pipe(
+    mergeMap( () => interval$.pipe(
+      takeUntil(mouseUp$),
+      last())))
+.subscribe(console.log);
+
+Puedo observar que es un operador muy útil.
+
+				VIDEO 79 MÁS EJEMPLOS CON MERGEMAP
+
+Volviendo al ejemplo del mergeAll podría tener un código como éste:
+
+const url = 'https://httpbin.org/delay/1?arg=';
+input$.pipe(
+  map<KeyboardEvent, string>((e) => (<HTMLInputElement>e.target)['value']),
+  mergeMap<string,Observable<any>>( texto =>
+    ajax.getJSON(url+texto),),
+)
+.subscribe(console.log);
+
+* en este caso el operador de aplanamiento mergeMap no es la mejor opción,ya que realiza muchas peticiones 'basura'.La solución es el operador switchMap.
+
+Diferencias entre mergeAll y mergeMap:
+1- Tengo varios Observables que emiten distintos valores,con mergeAll uniré todas esas emisiones y mostraré una sola salida.
+En Cambio con mergeMap si que tengo que especificar cual será el siguiente valor que deseo unir al valor principal,obteniendo exactamente el mismo resultado que mergeAll(tras especificar ese siguiente valor).Esto lo puedo ver aqui:
+ 
+ ...,
+ mergeAll<Observable<GithubUsersResponse>>(), <- fusiono todo
+
+ó bien
+
+ mergeMap<string,Observable<any>>( texto =>
+    ajax.getJSON(url+texto),),
+) <- yo le indico el Observable al que autosuscribirse
+
+				VIDEO 80 OPERADOR SWITCH MAP
+
+El switchMap,al igual que el mergeMap,es un operador que recibe un Observable en la callback de su argumento.Se auto-suscribirá a las emisiones de él.
+Imaginemos un Observable source$ el cual emite el valor de 'a'.
+
+El switchMap recibe ese valor y retorna la suscripcion a su Observable de la callback.Creará una nueva línea de tiempo,etc.Hasta aqui es exactamente igual que un mergeMap.
+
+Lo que varía es la forma en la que internamente se mantiene esta suscripcion.Si el source$ emitiera otro valor,el switchMap va a suscribirse al siguiente Observable,pero no mantiene todas las timelines,sino que sólo mantiene la última(en este caso al Observable B)
+
+Lógicamente switchMap cancela la suscripcion anterior sin tener que tener que hacer nada,con lo que cuando termine el Observable último termina todo,ya que los demás han ido terminando también.Esto de que cancele las anteriores es muy útil al realizar peticiones AJAX.
+
+NOTA: recuerda que un Observable se puede cancelar,asi que si tengo el ejemplo anterior que mandaba muchas peticiones realmente sólo mando la útlima,ya que las demás se cancelaron.Esto no sería posible con promesas o con el mergeMap.Genial.
+
+Asi pues cambiamos el ejercicio anterior:
+input$.pipe(
+  map<KeyboardEvent, string>((e) => (<HTMLInputElement>e.target)['value']),
+  switchMap<string,Observable<any>>( texto =>
+    ajax.getJSON(url+texto)),
+).subscribe(console.log);
+* Puedo observar en Network que incluso se cancela la petición,nunca salió.Increíble.Este operador es fundamental,pues.
+
+					VIDEO 81 SWITCHMAP VS MERGEMAP
+
+Imagina estos dos Observables:
+const click$ = fromEvent(document,'click');
+const interval$ = interval(1000);
+
+click$.pipe( mergeMap( () => interval$ ).subscribe(console.log); <- nota como no tengo que usar el .subscribe en el interno,ya lo hace mergeMap por mi.
+
+Bien,si hago un click empiezo un intervalo de 1 segundo,pero,fijate que si doy otro click empiezo otro intervalo y ya pierdo la cuenta.Si hago otro click tendré tres interval(1000).Seguramente no es lo que quiero.
+Sin embargo si lo cambio por un switchMap en cada click reiniciaré esa cuenta(esto podría ser útil).Jamás tendré más de una subscription a interval$.Genial.
+
+					VIDEO 82 CONCATMAP
+
+El operador de aplanamiento concatMap sirve para concatenar los Observables resultantes que puedan fluir a través de dicho operador.
+Al ser un flattening operator cuando recibe un Observable el operador automáticamente se va a suscribir a él,siendo el resultado el producto de dicho Observable,es decir,sus emisiones.
+
+Imaginemos concatMap( () => interval$.pipe( take(3) ) ); <- cuando reciba una emisión del source$ sobre el que estamos va a emitir un interval de 3 valores(1,2,3)pero imaginemos que antes de emitir el tres el Observable source$ emite otro valor,asi que se crea otra suscripción a interval$.
+Pudiera parecer que haría 1,2,1,3,2,3 mezclando las emisiones pero no, LO PONE EN UNA COLA Y LO CONCATENA.
+Lo concatenará al último valor emitido por el Observable precedente(y cuando se complete),es decir que con total probabilidad voy a tener 1,2,3 - 1,2,3 en este código.
+Todo el flujo terminará cuando el último de los Observables internos encolados termine de emitir.
+
+Veamos una pequeña muestra de él:
+
+
+const interval$ = interval(1000);
+const click$ = fromEvent(document, 'click');
+
+/* puedo observar las diferencias entre solo emitir el último,reiniciando la secuencia si es necesario (switchMap),emitir en paralelo mezclando la secuencia(mergeMap) y emitir en secuencial,nunca mezclando,sino concatenando(concatMap) */
+click$.pipe(
+  // switchMap( () => interval$.pipe(take(3)))
+  concatMap(() => interval$.pipe(take(3)))
+).subscribe(console.log);
+
+				VIDEO 83 EXHAUSTMAP FLATTENING OPERATOR
+
+El exhaustMap es otro flattening operator,recibirá un Observable y maneja la subscription él sólo,sin usar subscribe().
+
+Veamos de nuevo el ejemplo de exhaustMap( () => interval$.pipe( take(3) ) );
+Cuando el source$ emita un valor el exhaustMap se va a suscribir al interval$,tomando los tres primeros valores.
+La diferencia está en como se gestiona una nueva subscription si la primera aún está emitiendo.Recuerda que el concatMap simplemente las concatena.Pues bien,el exhaustMap si está emitiendo valores un Observable y recibe otro valor IGNORARÁ ESTA SEGUNDA SUSCRIPCIÓN,es decir que sigue con lo suyo.
+Sólo creará un subsiguiente interval$ cuando el primero haya terminado de emitir.
+Puedo apreciar pues que EL EXHAUSTMAP SÓLO MANTIENE UNA SUSCRIPCIÓN ACTIVA A LA VEZ.
+
+El exhaustMap es útil cuando tengo elementos que están lanzando muchos eventos rápidamente.Tendrán que ser valores que nosotros podemos ignorar(como presionar varias veces ENTER en un submit,causando posibles dobles submit).
+
+	VIDEO 84 COMPARACION ENTRE MERGEMAP,SWITCHMAP,EXHAUSTMAP Y CONCATMAP
+
+Para mantener todo en un mismo archivo vamos a crear un formulario manipulando el DOM con Javascript.Adicionalmente vamos a usar la API de reqres.in y alli puedo bajar un poco y ver endpoints.
+Selecciono el login succesfull y veré que tengo que apuntar a /api/login con este object literal:
+{
+    "email": "eve.holt@reqres.in",
+    "password": "cityslicka"
+}
+Tras mandar ese email y password me responderán con un token.
+
+NOTA: puedo acceder de varias formas a los atributos de una etiqueta HTML:
+inputEmail.setAttribute('type','email');
+inputEmail.type = 'email';
+El primero lo creará si no existe,el segundo ya debe existir.Para atributos que ya existen como type,name o value la segunda forma es más corta,pero la primera puedo usarla también y además crear cualquier custom attribute.
+
+Volviendo al form,si pulso submit o el Enter hace un hard refresh.Esto es muy antigüo y hay que evitarlo.Vamos a usar Observables para evitar esto:
+
+const submitForm$ = fromEvent(form, 'submit').pipe(tap(event => event.preventDefault()));
+
+Sin embargo,recuerda que un Observable que no tenga una subscription es sólo una declaración.Aún seguirá haciendo el refresh hasta que no me suscriba. 
+
+TAmbién vamos a transformar ya todo el evento recibido y retornar solo el objeto que necesitamos mandar a la API:
+const submitForm$ = fromEvent(form, 'submit').pipe(
+  tap(event => event.preventDefault()),
+  map(event => ({
+    email:event.target[0].value,
+    password:event.target[1].value
+  }))
+  );
+
+Por último,y como primer ejemplo,usamos un mergeMap(que recibe una función que reorne un Observable:
+ mergeMap( peticionHttpLogin )
+const peticionHttpLogin = (userCredentials) => ajax.post('https://reqres.in/api/login?delay=1', userCredentials)
+ .pipe(
+   pluck('response', 'token')
+ );
+
+Pero aún faltan cosas.SIEMPRE QUE REALICE UNA PETICION HTTP DEBO MANEJAR EL CASO DEL ERROR.
+const peticionHttpLogin = (userCredentials) => ajax.post('https://reqres.in/api/login?delay=1', userCredentials)
+ .pipe(
+   pluck('response', 'token'),
+   catchError(err => of('error fatal'))
+ );
+
+MERGEMAP
+Volviendo al ejercicio,el mergeMap puede tener cualquier cantidad de suscripciones activas internamente a la vez.Asi que puedo dar 5 clicks rápidamente y realizaré 5 logins.Mala idea usarlo con ajax en este ejemplo!
+SWITCHMAP
+El switchMap va a cancelar cualquier suscripcion previa,sólo puede tener una activa a la vez.En este ejemplo va perfecto,pues cancela las anteriores
+EXHAUSTMAP
+El exhaustMap ni siquiera las lanzará,como si ha hecho switchMap,sino que las ignora,también va perfecto(parece la mejor opción).
+En resumen es importante entender el flujo de estos operadores,y como puedo necesitar cancelar suscripciones o ejecutarlas en paralelo,concatenarlas,etc.Muy interesante.
+
+NOTA:investigar sobre Angular y suscripciones en paralelo(puede que tenga que implementar exhaustMap o switchMap)
+
+				SECCION 10 OPERADORES DE COMBINACIÓN
+
+Vamos a ver como añadir emisiones a un Observable,como añadirlas al principio,al final,como combinarlas,...
+También veré como combinar varios Observables en una sóla salida.
+
+Esta sección es más tranquila que las anteriores, aquí veremos operadores y métodos para combinar las emisiones de los observables o bien varios observables entre sí.
+
+Los temas principales son:
+1- startWith
+2- endWith
+3- concat
+4- merge
+5- combineLatest
+6- forkJoin
+
+Con sus ejercicios y laboratorio que se encuentran en esta sección, aprenderemos a poder utilizarlos en nuestros programas.
+
+				VIDEO 88 OPERADOR DE COMBINACIÓN STARWITH
+
+Este operador permite hacer una emisión antes de que el Observable empiece a emitir.Aunque emita incluso un valor síncrono siempre va a emitir lo del startWith antes.
+En el startWith puedo enviar cualquier tipo de argumento que desee.
+
+NOTA:fijate que es importante donde usar el pipe()
+/* yo puedo usar el pipe aqui.Si lo uso aqui cualquier suscripción a numeros usará lo de ese pipe. */
+const numeros$ = of(...[1,2,3,4,5]);
+
+/* pero si uso aqui el pipe es sólo para esta suscripción.Fijate que es importante esto,pues podría usarlo arriba para todos. */
+numeros$.pipe(
+  startWith('empieza la secuencia')
+).subscribe(console.log);
+
+					VIDEO 89 OPERADOR ENDWITH
+
+Similar al startWith,el endWith antes de que se complete el Observable va a emitir un último valor que yo desee.
+
+NOTA:no importa que los coloque en desorden.Uno es para emitir un valor previo a empezar las emisiones y otro para despues de la última emisión:
+
+numeros$.pipe(
+  endWith('termina la secuencia'), <- da igual el orden
+  startWith('empieza la secuencia'),
+).subscribe(console.log);
+
+				VIDEO 90 LABORATORIO STARTWITH ENDWITH
+
+Fijate que es startWith y no starts.Fijate que sencillo es crear un condicional para mostrar un loading en una petición:
+const loadingDiv = document.createElement('div');
+loadingDiv.classList.add('loading'); // es una clase custom que hizo él
+loadingDiv.innerText = `Cargando...`;
+
+const body = document.querySelector('body');
+
+// Stream 
+ajax.getJSON('https://reqres.in/api/users/2?delay=3')
+  .pipe(
+    startWith(true)
+  )
+  .subscribe( data => {
+    if( data === true){
+      body.append(loadingDiv);
+    }else{
+      loadingDiv.remove();
+    }
+    console.log(data);
+  });
+
+					VIDEO 91  función concat
+
+No es operador(ya que el operador concat está obsoleto),sino que es una función.La función concat recibe Observables como argumento(aunque también puede recibir un iterable o un arreglo,se usa mayormente para fusionar Observables).
+
+Con estos Observables el concat va a crear un nuevo Observable,es decir,que fusiona los Observables que reciba por argumento.Si solo es uno realmente no hace nada,simplemente emite lo que le pase el obs$1
+NOTA: para que pase al siguiente Observable tiene que terminar el anterior.
+Asi pues si tuviera tres Observables el 3 nunca empezará si no terminan el 1 y el 2(es decir que emite en secuencia y no en paralelo).
+
+NOTA:no debo confundir el operador concatMap que hace lo mismo,pero es un operador, con la función concat.
+
+const interval$ = interval(1000);
+/* fijate que es una función,pero igual regresa un Observable,diría que me da igual que sea una funcion que un Observable,asinto.Eso si como argumento puede tomar cualquier iterable y Observable.Concatenará en secuencia sus emisiones */
+concat(
+  interval$.pipe(take(3)),
+  interval$.pipe(take(2)),
+  of(111),
+  [1,2,3,4]
+ )
+.subscribe(console.log);
+NOTA: los operadores concat y merge están obsoletos.No debo importarlos de rxjs/operators sino de rxjs,dado que son funciones.
+
+						VIDEO 92 funcion merge
+
+El merge es otra función que recibe uno o más Observables y el resultado va a ser el resultado de combinar ambos Observables simúltaneamente.Es decir que es como concat pero en paralelo.
+Lógicamente no se completará hasta que termine de emitir el último Observable.
+
+const keyup$ = fromEvent(document, 'keyup');
+const click$ = fromEvent(document, 'click');
+
+merge( 
+  keyup$.pipe(pluck('type')),
+  click$.pipe(pluck('type')), 
+).subscribe(console.log);
+Realmente no se aprecia ya que o emite uno o emite otro xd.
+				
+				VIDEO 93 funcion combineLatest
+
+La función combineLatest permite mandar Observables como argumento,combinarlos y emitir los valores de todos esos Observables simultáneamente.La función regresa un nuevo Observable que no se terminará hasta que al menos cada uno de sus Observables internos hayan emitido un valor.
+Es importante entender que combina las emisiones(cosa que no hace merge),aparte de emitir en paralelo:
+Imagina que el Obs$1 emite a y el Obs2$ emite 1,la salida será 'a1',es decir que combinó las emisiones(luego observo que es el primer operador/función que lo hace).
+Pero no sólo eso,si el Obs1 emitierá ahora b,la salida sería b1(es decir,las dos últimas emisiones ya que son dos!).Si Obs2 emitiera un 2 la salida sería b2,siempre los ultimos valores de cada emisión.
+Como siempre,todos los Observables internos deben completarse para que se complete el externo.
+
+La función combineLatest se usa de forma distinta en actualmente. Ya no recomiendan el uso de pasarle n cantidad de observables (como enseña Fernando), recomiendan pasar los argumentos en un sólo arreglo en su lugar.
+
+const input1 = document.createElement('input');
+const input2 = document.createElement('input');
+input1.placeholder = 'Enter email';
+input2.placeholder = 'Enter password';
+
+input2.type = 'password';
+document.querySelector('body').append(input1, input2);
+
+const getInputStream = (elem: HTMLInputElement) => fromEvent<KeyboardEvent>(elem, 'keyup')
+  .pipe( map<KeyboardEvent, string>(event => 
+    (<HTMLInputElement>event.target).value));
+
+
+combineLatest([
+  getInputStream(input1),
+  getInputStream(input2)
+]).subscribe(console.log);
+
+Realmente debe haber usos mejores para muchos operadores y funciones de este curo,pero debo verlo como una introducción.En este sentido cumple con creces.
+
+					VIDEO 94 FORKJOIN
+
+Asi como el combineLatest o el merge,el forkJoin también puede recibir varios Observables como argumento para trabajar.
+Sus Observables internos tienen que ser finitos,tienen que completarse,sino el forkJoin no emitirá
+El forkJoin va a retornar el ÚLTIMO valor de cada uno de los Observables cuando éstos se completen(en el momento en que se completen TODOS).Es por esto que tienen que ser finitos y además tienen que completarse.
+En el momento en que todos se completen el forkJoin va a emitir todos los valores como un arreglo(aunque podemos transformarlo a un objeto fácil)
+
+NOTA:recuerda que emitirá la última emisión de cada Observable,cuando todos se completen,no todas las emisiones:
+
+/* de nuevo está deprecado usar varios argumentos.Usar un arreglo de ellos ya */
+forkJoin([
+  numeros$,
+  interval$,
+  letras$
+]
+).subscribe(console.log); //emitirá [4,2,'c']
+
+/* y si quiero un objeto como salida en vez de un arreglo uso un objeto como argumento */
+forkJoin({
+  numeros$,
+  interval$,
+  letras$
+}).subscribe(console.log); //emitirá {numeros: 4, interval: 2, letras: 'c'}
+
+					VIDEO 95 USO COMÚN DE FORKJOIN
+
+El caso de uso más común es realizar varias peticiones y devolver su respuesta a la vez.Fijate que se retornarán cuando la más lenta de ellas termine(supongo que se lanzan en paralelo):
+
+/* el caso de uso más común para forkJoin es realizar peticiones ajax de forma simúltanea.Fijate que se realizarán las tres en un primer momento,y cuando estén las tres realizadas el forkJoin devuelve las tres responses */
+const GITHUB_API_URL = 'https://api.github.com/users';
+const GITHUB_USER = 'oscargm40';
+
+forkJoin({
+  usuario: ajax.getJSON(`${GITHUB_API_URL}/${GITHUB_USER}`),
+  repos: ajax.getJSON(`${GITHUB_API_URL}/${GITHUB_USER}/repos`),
+  gists: ajax.getJSON(`${GITHUB_API_URL}/${GITHUB_USER}/gists`)
+
+}).subscribe(console.log);
+
+Sin embargo,siempre debería capturar el error.En este caso lo haremos tras realizar las tres peticiones,pero podria usar catchError individualmente,ya que ajax.getJSON es un Observable:
+
+forkJoin({
+  usuario: ajax.getJSON(`${GITHUB_API_URL}/${GITHUB_USER}`),
+  repos: ajax.getJSON(`${GITHUB_API_URL}/${GITHUB_USER}/repos`),
+  gists: ajax.getJSON(`${GITHUB_API_URL}/${GITHUB_USER}/gists`)
+
+}).pipe(
+    catchError(err => of(err))) <- podría hacerlo de uno en uno
+  .subscribe(console.log);
+
+Sería aún mejor idea capturar el error individualmente,asi no caen las tres si cae una.
+
+							SECCION 11 EJERCICIOS
+
+Repo con los ejercicios: https://github.com/Klerith/rxjs-ejercicios
+
+			VIDEO 99 EJERCICIO CAPITALIZAR
+
+Recuerda que puedo crear funciones flecha anónimas autoejecutables o autoinvocadas.De esta forma evito problemas con archivos al mismo nivel,ya que crea un scope nuevo:
+(() => { code here ...})(); <- nuevo contexto,no tendré problemas con variables
+
+Muy fácil,con un from() o un of(...iterable) itero y con un map transformo aplicando esa función que ya me da Fernando:
+(({ startMessage, endMessage }) => {
+
+  const nombres = ['batman', 'joker', 'doble cara', 'pingüino', 'hiedra venenosa'];
+
+  const capitalizar = (nombre: string) => nombre.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+
+  // puedo usar from u of(...nombres)
+  from(nombres).pipe(
+    startWith(startMessage),
+    endWith(endMessage),
+    map(capitalizar),
+  ).subscribe(console.log);
+
+})({ startMessage: 'Starting...', endMessage: 'Finished!' });
+
+			VIDEO 100 EJERCICIO DOS - REDUCE
+
+Realmente es muy sencillo también.Fijate que hay varias formas de comprobar si un valor es un número.Tengo la función isNaN(value) la cual puedo negar para que SI sea un numero, o el operador typeof( typeof value === 'number') o incluso decir que value > 0(si es mayor que 0 es un numero).Mejor no usar esta última opción.
+
+(() => {
+  const datos = [1, 2, 'foo', 3, 5, 6, 'bar', 7, 8];
+
+  from(datos).pipe(
+    filter( (x: any) => !isNaN(x)),
+    reduce( (acc, x) => acc += x)
+  ).subscribe(console.log) // La salida debe de ser 32
+
+})();
+
+				VIDEO 101 EJERCICIO 03 RANDOMS
+
+Realmente es muy fácil también.Simplemente hay que crear un Subject,usarlo como subscriber/observer en mi Observable principal y despues usarlo como Observable,suscribiendome a ese Subject:
+const subject$ = new Subject();
+reloj$.subscribe(subject$); <- lo uso como observer primero
+
+subject$.subscribe(console.log);
+subject$.subscribe(console.log); <- y despues lo uso como Observable.
+
+Ejercicio completo:
+(() => {
+
+  // == NO TOCAR este bloque ====================
+  const reloj$ = interval(1000).pipe(
+    take(5),
+    map(val => Math.round(Math.random() * 100))
+  );
+  // ============================================
+    
+  const subject$ = new Subject();
+  reloj$.subscribe(subject$);
+  
+  // Estos dos observables deben de emitir exactamente los mismos valores
+  subject$.subscribe(val => console.log('obs 1: ', val));
+  subject$.subscribe(val => console.log('obs 2: ', val));
+
+})();
+
+				VIDEO 102 EJERCICIO 04 CUENTA REGRESIVA
+
+Realmente el ejercicio no es difícil,la mejor opción es el map,aunque también se puede hacer con un scan:
+(() => {
+
+  const inicio = 7;
+  const countdown$ = interval(700).pipe(
+    /* El scan es como un reduce,pero no emite el acumulado,sino el acumulado parcial en cada emisión.
+    Acumulado es 8-7-6-5-4-3-2-1   */
+    // scan((accumulator, current) => --accumulator, inicio +1),
+    /* también puedo usar un map */
+    map( i => inicio - i),
+    take(inicio + 1),
+  );
+
+  // No tocar esta línea ==================
+  countdown$.subscribe(console.log); // =
+  // ======================================
+
+})();
+
+					VIDEO 103 EJERCICIO 05 COMBINAR
+
+Nada complicado,hay que combinar con combineLatest y transformar la salida sacandolo del arreglo:
+import { interval, timer, combineLatest } from 'rxjs';
+import { map, take } from 'rxjs/operators';
+/**
+ * Ejercicio: Combinar ambos observables (letras$, numeros$)
+ * para que las emisiones sean la concatenación de los últimos
+ * valores emitidos
+ */
+
+//  Ejemplo de la tada esperada:
+// a1
+// a2
+// b2
+// b3
+// c3
+// c4
+// d4
+// d5
+// e5
+
+(() => {
+
+    const letras = ['a', 'b', 'c', 'd', 'e'];
+    
+    /* letras empezará al de 1 seg */
+    const letras$ = interval(1000).pipe(
+        map<number, string>(i => letras[i]),
+        take(letras.length));
+    
+    const numeros = [1, 2, 3, 4, 5];
+    /* numeros empezará al de 500ms */
+    const numeros$ = timer(500,1000).pipe(
+        map<number, number>(i => numeros[i]),
+        take(numeros.length));
+    
+    combineLatest([letras$, numeros$]).pipe(
+        map(([letra, numero]) => letra + numero)
+    )
+    .subscribe(console.log); 
+
+})();
+
+			VIDEO 104 EJERCICIO 06 LUKE SKYWALKER y FUNCION ZIP
+
+Parte del ejercicio es estudiar sobre la función zip:
+https://rxjs-dev.firebaseapp.com/api/index/function/zip
+La función zip combina múltiples Observables para crear un Observable cuyos valores son calculados de los valores(emitidos en orden) de estos Observables internos.
+Ejemplo
+let age$= of(27,25,29);
+let name$= of('Foo','Bar','Beer');
+let isDev$=of(true,true,false);
+
+zip(age$,name$,isDev$).pipe(
+  map( ([age,name,isDev]) => ({age,name,isDev}) ) )
+  .subscribe(console.log);
+
+// Outputs
+// { age: 27, name: 'Foo', isDev: true }
+// { age: 25, name: 'Bar', isDev: true }
+// { age: 29, name: 'Beer', isDev: false }
+
+
+Realmente era muy fácil,ya que incluso puedo usar la funcion zip en un único paso:
+getRequest(`${SW_API}/people/1`).pipe(
+  switchMap(res => zip( of(res), getRequest(res.starship[0])) ),
+  map( ([res1,res2]) => ({personaje:res1;nave:res2 }) )
+  .subscribe(console.log).
+Genial.Fijate como mando la respuesta con un of(res),la cual será un objeto,me da igual,of va a devolver un Observable de lo que sea y el segundo hago una petición hay mismo ayudandome de una propiedad del primer objeto.
+Despues transformo la salida al gusto.Desde luego rx merece la pena.Seguir mejorando y estudiando programación reactiva.
+
+
+

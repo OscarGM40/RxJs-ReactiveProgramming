@@ -1,0 +1,219 @@
+
+
+¿Cuando usar RX?
+1- Para manejar cualquier evento en la interfaz de usuario
+2- Cuando es necesario notificar sobre cambios en uno o varios objetos a otras partes
+3- En comunicación por sockets
+4- Y cuando necesito trabajar con flujos de información(Streams de data).
+
+La programación reactiva tiene tres piezas fundamentales
+1- Observables
+2- Subscribers
+3- Operators
+
+Los Observables son la fuente de información,la pieza fundamental.Pueden emitir múltiples valores, un único valor o no emitir ninguno(pero aún asi estar activo).
+También puede emitir errores
+Puede ser infinito(no completarse nunca) o finito(se completa).
+También pueden ser síncronos o asíncronos.Si bien su fuerte es la asincronia,pueden ser sincronos.
+
+Los Subscribers se "suscriben" a un Observable,es decir,están pendientes de lo que realiza ese Observable.
+Consumen(o sólo la observan) la data que viene de ese Observable
+Pueden recibir errores,data o eventos desde el Observable
+Realmente desconocen todo lo que se encuentra detrás del Observable(si se ha filtrado,si ha pasado por varios lugares,...).
+
+Los operadores son masivamente utilizados para TRANSFORMAR los Observables(map, group,scan,...)
+También son utilizados para FILTRAR los Observables (filter, distinct, skip, debounce,...).
+Y también son usados para COMBINAR Observables o para CREAR NUEVOS Observables.
+
+Si por ejemplo tuviera un problema a resolver donde tuviera que rastrear la ubicación del usuario,pero filtrarla sólo cuando la precisión de esa data sea menor a X valor,y además seguir la aceleración de ese usuario y determinar su dirección en base al norte magnético,combinar esos valores(acimut y ubicación) y enviar esa data cada 5 segundos a la API y con la respuesta graficar una UI,con la programación reactiva podría hacer esto mucho más fácil que sin ella.
+
+Como beneficios evita el callback hell, trabaja muy fácil sincronia y asincronia y los operadores reducen y simplifican el código.También es muy fácil transformar los streams,genera un código más limpio y fácil de leer.
+Y además es fácil de implementar.
+Cabe destacar que es muy fácil anexar procedimientos a posteriori sin alterar el producto final.
+
+ReactiveExtensions(rxjs) es una API para programación asíncrona usando observables.Es una combinación de las mejores ideas para el patrón Observer,el patrón Iterator y la programación funcional.
+El patrón observer es un patrón de diseño que define una dependencia del tipo uno a muchos entre objetos de manera que cuando uno de los objetos cambia su estado,notifica ese cambio a todos los dependientes(puedo ver que Kafka,Eureka,MQTT,NATS,etc usan ese patrón,no??)
+El patrón iterador define una interfaz que declara los métodos necesarios para acceder secuencialmente a un grupo de objetos de una colección
+Por último,la programación funcional crea un conjunto de funciones que no mutan la data,sin efectos secundarios,que realizan objetivos específicos(filtrar,transformar)
+
+IMPORTANTE: el simbolo $ indica que es un observable(siempre debo identificar a un Observable)
+
+NOTA: fijate que rxjs si que va a ser parte del bundle final de mi aplicación,con lo que tengo que dejarla en dependencies.Fijate como Fernando usó webpack-dev-server que levanta un servidor.
+También ha configurado un webpack.config.js con el punto de entrada o qué tipos de archivos acepta(investigar más por mi cuenta este file y el modulo webpack-dev-server):
+
+
+module.exports = {
+    entry: './src/index.ts',
+    devtool: 'inline-source-map',
+    module: {
+        rules: [
+            {
+                test: /\.tsx?$/,
+                use: 'ts-loader',
+                exclude: /node_modules/
+            }
+        ]
+    },
+    resolve: {
+        extensions: [ '.tsx', '.ts', '.js' ]
+
+				SECCION 02 OBSERVABLES - INTRODUCCIÓN
+
+Fijate que crear un Observable<T> es bastante sencillo.Es muy conveniente tiparlo,ya que si uso un Observable<Product> me aseguraré que solo se emiten Products.				
+
+const obs$ = new Observable<string>( observer => {
+  observer.next('hola'); <- fijate que sólo puedo emitir strings
+  observer.complete(); <- una vez completado el observer la suscribción no recibirá mas valores
+  observer.next('valor que no se recibirá) <- sin embargo el Observable podría emitirlos.
+})
+
+				VIDEO 16 SUSCRIPCIÓN Y UNSUBSCRIBE
+
+IMPORTANTE: el retorno del método subscribe() es una Subscription.En cuanto haga el subscribe a un Observable esa función retorna eso.Por consecuencia,si asigno el retorno de la función a una variable
+
+NOTA: fijate que cancelar una subscripción no tiene nada que ver con que el Observable termine de emitir valores.Perfectamente puede seguir emitiendo valores,pero la suscripción no los recibiría.
+
+const interval$ = new Observable<number>(subscriber => {
+  let posInitial = 1;
+  let contador = setInterval(() => subscriber.next(posInitial++), 1000)
+})
+
+const subs = interval$.subscribe(num => console.log('Num: ',num));
+
+setTimeout( () => subs.unsubscribe(),3000) <- solo veré hasta el 3,pero el interval no se ha cancelado,simplemente dejé de escuchar,pero el emisor sigue "hablando".
+NOTA: Subject no devuelve el valor actual en la Subscription.Sólo se dispara en el .next(value) y devuelve el value:
+let subject = new Rx.Subject();
+subject.next(1) <- subject emitió antes de la subscription
+
+subject.subscribe({next: (v) => console.log('observerA: ' + v)})
+
+IMPORTANTE: cuando llame al subscribe y me suscriba se creará una nueva instancia de la clase Observable y por consecuencia ejecutará todo su código de nuevo:
+
+setTimeout( () => {
+  subs1.unsubscribe();
+  let subs2 = interval$.suscribe() <- esto empezará 1,2,3,4,5,... de nuevo
+},3000) <- si bien para la 1,también crea otro objeto con una cuenta infinita,ojo!
+
+NOTA: el return del Observable para limpieza puede dispararse o bien por el unsubscribe o bien manualmente con observer.complete.Sólo puede llamarse una vez,por la opción que suceda antes:
+const interval$ = new Observable( observer => {
+  const contador = setInterval( () => observer.next(initialValue++));
+  setTimeout( observer.complete(), 2500) <- fijate que llama al complete()
+  return( () => clearInterval(contador) <- sucederá al de 2500
+})
+const sub1 = interval$.subscribe(console.log)
+setTimeout( sub1.unsubscribe(),5500) <- este unsubscribe no disparará el return del Observable,ya que lo dispara su setTimeout interno,que llama antes al complete
+
+En resumen,el complete() no es lo mismo que el unsubscribe(),aunque ambos llaman al return al ser llamados.
+
+		 AÑADIR SUBSCRIPCIONES EN CADENA
+
+ENCADENAR SUBSCRIPCIONES: puedo invocar una función en el unsubscribe de una Subscription.Para ello se usa el método add:
+subs1.add(subs2).add(subs3).
+OJO,esto cuenta como una sóla,asi que llamar a subs1.unsubscribe limpiará los 3 intervalos.
+
+Normalmente se usan otro tipo de operadores.
+
+		VIDEO 18 -19 SUBJECT - BEHAVIOURSUBJECT - REPLAYSUBJECT
+
+Son todo tipos de observables,que además pueden ser Observer(luego son un Observable + Observer).Por ello,pueden ser pasados como argumento de otros Observables(o de otros Subject,fijate en el bucle).
+En este punto es importante entender que la clase Observable por naturaleza emite en monocasting:
+
+const interval$ = new Observable<number>(subscriber => {
+  const interval = setInterval(() => subscriber.next(+Math.ceil(Math.random() * 10).toFixed(0)), 1000);
+  return (() => clearInterval(interval));
+})
+
+const subs1 = interval$.subscribe(rnd => console.log('Subscription 1: '+rnd))
+const subs2 = interval$.subscribe(rnd => console.log('Subscription 2: '+rnd))
+*Esto dará numeros diferentes,ya que cada Subscription es una instancia diferente de la clase Observable(monocasting).
+
+¿Pero,y si necesito que ambas subscripciones reciban el mismo dato?Es decir que no se creen diferentes instancias.Es aqui donde entra la clase Subject y sus derivadas:
+IMPORTANTE: Subject nace ya en multicasting,es decir que todas las Subscripciones recibirán el mismo valor del observer.Además,también es un observer,recuerda.
+
+Por todo ello podria pasarlo como observer a un Observable y al hacer esto cambiar la clase Observable a multicasting(ojo que hay que suscribirse al Subject)
+const subject$ = new Subject<number>(); 
+interval$.subscribe(subject$);
+
+const subs1 = subject$.subscribe(rnd => console.log('Subscription 1: '+rnd))
+const subs2 = subject$.subscribe(rnd => console.log('Subscription 2: '+rnd))
+
+NOTA:seguramente sería mejor haber creado un Subject desde un principio y en el next pasarle la lógica del Observable.
+Dado que ademas es un observer,puedo terminarlo cuando quiera,emitir lo que quiera,etc:
+
+setTimeout( () => {
+  subject$.next(455);
+  subject$.complete();
+},3500)
+
+				COLD OBSERVABLE VS HOT OBSERVABLE
+
+Cuando la data es producida por el observable en sí mismo es considerado un "Cold Observable".Pero cuando la data es producida FUERA del Observable es llamado "Hot Observable"				
+En este caso la clase Observable es un Cold Observable,pues produce sus propios valores.Sin embargo,al pasarle el Subject,lo transforme en Hot Observable,ya que la data ahora para ese Subject se produce fuera
+
+Dado que este tipo de operaciones pueden dar lugar a memory leaks la libreria ya ofrece otra forma de crear Observables,dependiendo de las necesidades,manejando por nosotros el complete,error,next etc...
+
+			SECCION 04 CREAR OBSERVABLES MEDIANTE LIBRERIA RXJS
+
+Es momento de utilizar funciones para crear observables!, esto nos ayudará a reducir mucho el tiempo a la hora de crear nuevos observables.
+
+Los temas principales de la sección son:
+1- of
+2- fromEvent
+3- interval
+4- timer
+5- asyncScheduler
+
+Mas adelante veremos otras funciones que crean observables, pero por ahora enfoquemos nuestra atención en las básicas y más comunes.
+
+					VIDEO 23 FUNCIÓN OF
+
+El método/función of<T> me permite crear un Observable en base a un listado de elementos.Emitirá los valores de manera síncrona y se completará tras emitir el último 					of<T>(...args:Array<T>):Observable<T> 
+
+const of$ = of<number[]>(1,2,3,4,5,6);
+
+console.log('Inicio del of sincrono')
+of$.subscribe({
+  next: v => console.log(`Next: ${v}`),
+  error: err => console.log(err),
+  complete: () => console.log('Terminada la secuencia'),
+})
+console.log('Fin del of sincrono')
+* Es importante comprender que no es lo mismo of([1,2,3,4,5,6]),que sólo tiene un argumento que un of(1,2,3,4,5,6) que tiene 6 argumentos.
+El primero sólo emitirá un valor,el segundo 6.Asi pues of() emite los argumentos que reciba de uno en uno secuencialmente y de manera sincrona.	
+
+Fijate que puede emitir cualquier cosa:
+const obs$ = of<any>( [1,2],{a:1,b:2},function(){},true,Promise.resolve('Resolved'))
+obs$.subscribe(console.log)
+
+Por último es importante especificar el tipo de dato que va a fluir a través del Observable,ya que normalmente trabajaré con uno sólo.
+NOTA: fijate en el uso de Promise.resolve(valueToEmit) para simular una Promise que se resuelve exitosamente.
+
+					VIDEO 24 FUNCIÓN fromEvent 
+
+La función fromEvent<Event>(document,'scroll') me permite crear un Observable en base a un evento HTML.Necesita un target,en este caso es todo el documento,pero puede ser un div o un botón,simplemente(el argumento admite un selector como getElementById)					
+
+Esta función,junto con alguna más,es una de las más usadas.
+NOTA: Event es el padre de todos y es demasiado genérico.Para saber que tipo de evento es primero lo disparo y despues lo veo por consola:
+
+const src1$ = fromEvent<MouseEvent>(document,'click')
+const src2$ = fromEvent<KeyboardEvent>(document,'keyup') <- no dejar sin el genérico
+
+const observer: Observer<any> = {
+  next: (val) => console.log('next:',val),
+  error: err => console.error('Error',err),
+  complete: () => console.info('Observer completed')
+}
+
+src1$.subscribe(observer);
+src2$.subscribe(observer);
+
+* Veré que son MouseEvent y KeyboardEvent.De otra forma no voy a poder acceder a clientX o clientY en el primero o a key o keyCode en el segundo
+
+src1$.subscribe(e => console.log(e.clientX,e.clientY));
+src2$.subscribe(e => console.log(e.key));
+
+Fijate que podria desestructurar los argumentos de esa callback y fijate también que esta función tiene un gran numero de usos posibles.
+
+				VIDEO 25 FUNCIÓN RANGE
+
+				
