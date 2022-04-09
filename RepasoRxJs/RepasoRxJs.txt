@@ -331,4 +331,90 @@ const keyupWithCode$ = keyup$.pipe(
 
 keyupWithCode$.subscribe(val => console.log('code: ',val))
 
+			OPERADOR PLUCK
 
+El operador Pluck es sumamemente útil cuando quiero extraer un único valor del objeto que estoy recibiendo en el stream de datos y que ese valor sea la única salida del Observable después.
+pluck({v:2}) <- la salida será 2
+*Ojo,la salida es el value,pero se apunta a la key.
+
+Probemos con el ejemplo anterior:
+let keyup$ = fromEvent<KeyboardEvent>(document,'keyup').pipe( pluck('key') ).subscribe(console.log)
+
+Realmente no tiene más ciencia.
+TIP: puedo acceder a propiedades anidadas,es decir, a los valores de propiedades de objetos dentro de objetos 
+
+keyup$.pipe(
+  pluck('target','baseURI')<- simplemente añado argumentos extra
+
+			  OPERADOR mapTo
+
+El operador mapTo(valueRetorned) me permite transformar la entrada en una salida específica,la misma.Pide un valor de retorno como argumento: 
+
+const keyupMapTo$ = keyup$.pipe(
+  mapTo<KeyboardEvent,string>('tecla presionada')
+  ).subscribe(console.log)
+
+  * Realmente no parece muy útil transformar toda entrada en una misma salida en programación
+
+			  OPERADOR FILTER
+
+El operador filter 'filtra' la entrada del stream de datos en base a una condición lógica.Sólo saldrán del stream los elementos que cumplan esa condición(la resuelvan a true).
+
+/* fijate que si filter recibe el index es porque iterará en orden si o si */
+const range$ = range(1, 10).pipe(
+  filter((x, i) => x % 2 !== 0)
+  ).subscribe(console.log)
+
+			ENCADENAMIENTO DE OPERADORES
+
+Al abrir la zona de operadores con pipe() puedo encadenar cuantos quiera.Debo de tener en cuenta que se ejecutan secuencialmente,y cada uno recibirá como entrada la salida del anterior:
+
+const keyup$ = fromEvent<KeyboardEvent>(document,'keyup').pipe(
+  map<KeyboardEvent,string>(event => event.code),
+    filter( code => code === 'Enter')
+    )
+				OPERADOR TAP
+
+Este operador permite disparar efectos secundarios al stream de datos(éste no se debe ver afectado).Al emitir un observable un valor puedo ejecutar una acción(fijate que tap no devuelve un Observable,no devuelve nada,simplemente ejecuta su código).
+Es bastante común para impresiones en consola.
+
+TIP:fijate que la firma indica que puedo pasarle un observer(en realidad es un PartialObserver,que es un Observer con menos características):
+(alias) tap<number>(observer?: Partial<TapObserver<number>>)
+
+/* fijate que la instrucción return del operador tap es auto-ignorada */
+const numeros$ = range(1, 5).pipe(
+  tap(x => { console.log('en el tab', x); return 100 }),
+  map(val => val * 10),
+  tap({
+    next: valor => console.log('en el partial observer',valor),
+    complete: () => console.log('Se terminó el Observable')
+  })
+)
+
+/* fijate que un Partial Observer no me obliga a usar las tres propieades.Un Observer si,tengo que usar el next,el error y el complete */
+
+			PRACTICA LABORATORIO SCROLL
+
+Fijate que para esta practica hay que tener bien claro como sacar el porcentaje de lo que se lleva scrolleado.
+ClientHeight: es la altura actual de la pantalla(por ejemplo 350px)
+ScrollHeight: es todo el contenido que hay en el html,haya scrolleado el usuario o no(por ejemplo,800px)
+Asi pues,puedo deducir ya que tiene 450px ocultos por scrollear el usuario.
+ScrollTop: esta variable indica a que distancia estoy de la posicion 0 top.Diria que no lo explica bien,es la distancia que ya he escrolleado,luego nunca será más de 450px
+Si tuviera un scrollTop de 300/450 me dará 0.6 que por 100 será un 66%
+
+Sabiendo esto,puedo suscribirme al scroll de un documento html y sacar este porcentaje:
+
+const scroll$ = fromEvent(document, 'scroll');
+const progress$ = scroll$.pipe(
+  map(event => calculateScrollPercent(event)), <- podria usar map(calculateScrollPercent)
+);
+
+const calculateScrollPercent = (event) => {
+ const { clientHeight,scrollTop, scrollHeight } = event.target.documentElement;
+ return scrollTop / (scrollHeight - clientHeight) * 100;
+} <- recuerda multiplicarlo por 100
+
+Por último le cambio el porcentaje del width:
+progress$.subscribe(porcentaje => {
+  progressBar.style.width = `${porcentaje}%` //al loro con el string explicito
+})
