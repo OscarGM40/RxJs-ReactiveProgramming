@@ -418,3 +418,119 @@ Por último le cambio el porcentaje del width:
 progress$.subscribe(porcentaje => {
   progressBar.style.width = `${porcentaje}%` //al loro con el string explicito
 })
+
+				VIDEO 42 OPERADOR REDUCE
+
+Básicamente el operador reduce( (acc,curr) => acc + curr,0) hace lo mismo que la función.Aplica una función acumuladora,la cual podria definir antes:
+
+const totalReducer = (acumulador: number, valor: number) => {
+  return acumulador + valor;
+}
+
+/* fijate que el operador take(n) toma los primeros n valores y automáticamente hace terminar al Observable.Y fijate en la importancia de esto */
+timer(3000, 1500).pipe(
+  take(3),
+  tap(console.log),
+  reduce( totalReducer,5)
+)
+  .subscribe({
+    next: val => console.log('Next:', val),
+    complete: () => console.log('Completed')
+  })
+
+				  OPERADOR SCAN
+
+El operador scan es exactamente igual que el operador reduce con la diferencia que los valores van saliendo según son emitidos,pero sigue devolviendo el valor acumulado únicamente.
+scan( (acc,cur) => acc + cur,0) <- es un reduce pero no emitirá sólo 21 en la última emisión.
+
+const numeros = Array.of(...Array(6).keys()).map(x => x + 1);
+
+const totalAcumulador = (acc: number, val: number) => acc + val;
+
+from(numeros).pipe(
+  scan(totalAcumulador,0)
+).subscribe(console.log)
+
+Veré 1,3,6,10,15 y 21 en vez de sólo el 21.
+
+IMPORTANTE: este operador tiene la misma funcionalidad que el store de Redux:
+ /* scan funciona igual que el store de Redux,imaginemos un Usuario cualquiera */
+interface Usuario {
+  id?: string;
+  autenticado: boolean;
+  token?: string;
+  edad?: number
+}
+
+const user: Usuario[] = [
+  { 'id': 'fernando', autenticado: false, token: null },
+  { 'id': 'fernando', autenticado: true, token: 'ABC' },
+  { 'id': 'fernando', autenticado: true, token: 'ABC134' },
+]
+/* fijate que simplemente quiero devolver el current(cada iteración) y el acumulado.Incluso le puedo dar un valor inicial */
+const state$ = from(user).pipe(
+  scan<Usuario,Usuario>((acc, cur) => {
+    return { ...acc, ...cur }
+  }, {autenticado:false, edad: 33 })
+)
+/* ahora sólo quiero saber los cambios en el id del usuario */
+const id$ = state$.pipe(
+  // pluck('id')
+  map(state => state.id),
+  distinctUntilChanged()
+).subscribe(console.log)
+
+				SECCION 06 OPERADORES NO TAN COMUNES
+
+Si bien este término de no tan comunes es muy relativo,los veremos como una segunda categoría,aunque pueden llegar a ser básicos en el día a día.Veré los siguientes:
+take, first, takeWhile, takeUntil, skip ,distinct, distinctUntilChanged,distinctUntilKeyChanged
+
+			OPERADOR TAKE
+
+Este operador es sumamente útil cuando quiero limitar la cantidad de emisiones que un Observable puede tener.Recuerda que va a completar la Subscription(no completa el Observable,sino la Subscription)			
+
+const numeros = [...Array(10).keys()].map(x => x += 1)
+
+from(numeros).pipe(
+  tap(console.log),
+  take(5)
+).subscribe({
+  next: val => console.log('Next:', val),
+  complete: () => console.log('Completed')
+})
+
+Puedo observar que take completa la Subscription,ojo,no el Observable,como habia dicho antes.
+
+				OPERADOR FIRST
+
+El operador first(predicate) tomará los primeros x valores que cumplan la condición.Si se usa sin argumentos toma el primero únicamente,asi que es el homónimo de take(1):
+
+const click$ = fromEvent<MouseEvent>(document, 'click')
+
+click$.pipe(
+  // take(1),
+  first()
+) .subscribe({
+  next: val => console.log('Next:', val),
+  complete: () => console.log('Completed')
+
+Sin embargo,normalmente se usa con una expresión lógica,dado que es muy potente con el predicado:
+Imaginemos el mismo ejemplo anterior,pero en vez de tomar el primero,tomar el primer click en determinada coordenada(clientY > 150):
+
+/* first es muy potente con el predicado */
+click$.pipe(
+  tap<MouseEvent>(console.log),
+  map( ({ clientX, clientY }) => ({ clientY, clientX })),
+  first( ({clientY}) => clientY > 200)
+  // first<MouseEvent>((event) => event.clientY > 150)
+).subscribe({
+  next: val => console.log('Next:', val),
+  complete: () => console.log('Completed')
+})
+});
+
+Fijate en la destructuración tan bonita que hizo
+
+					OPERADOR TAKEWHILE
+
+					
