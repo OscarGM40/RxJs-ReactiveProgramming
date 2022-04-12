@@ -533,4 +533,251 @@ Fijate en la destructuración tan bonita que hizo
 
 					OPERADOR TAKEWHILE
 
-					
+El operador takeWhile(condition,inclusive?:boolean) permite recibir valores mientras la condición del argumento se cumpla.Recibe un segundo argumento opcional que incluye la emisión que hizo completar la Subscription porque dio false:
+takeWhile( x => x < 4) <- tomará las emisiones mientras x sea menor a 4
+
+const click$ = fromEvent<MouseEvent>(document, 'click');
+
+click$.pipe(
+  map(({ x, y }) => ({ x, y })),
+  takeWhile(({ y }) => y < 150, true)
+).subscribe({
+  next: val => console.log('Next:', val),
+  complete: () => console.log('Complete')
+})
+Fijate que la opcion de ver la emision que rompe la condición puede ser muy útil,y que también el propio operador tiene pinta de ser útil.
+
+				OPERADOR TAKEUNTIL
+
+Este es el primer operador del curso que recibe como argumento otro Observable.Esto abre un nuevo campo de posibilidades,ya que un primer Observable puede estar emitiendo hasta que suceda la emisión del segundo,pudiendo ser un click o cualquier cosa:
+interval$ (1,2,3,4,5) 
+click$ = fromEvent ...
+Puedo tener un interval que emita valores hasta que haga un click en un botón concreto.
+
+const boton = document.createElement('button');
+boton.textContent="Detener timer"
+boton.style.cursor="pointer"
+
+document.querySelector('body').append(boton);
+
+const interval$ = timer(500,1000)
+const click$ = fromEvent(boton,'click')
+
+interval$.pipe(
+  takeUntil(click$)
+).subscribe({
+  next: val => console.log('Next:',val),
+  complete: () => console.log('Completed'),
+})
+Fijate que interesante,y fijate como recibe el Observable dos takeUntil,pero me suscribo al Uno.
+
+				OPERADOR SKIP
+
+El operador skip(n:number) me sirve para saltar u omitir las siguientes n emisiones.Es bastante sencillo realmente.
+TIP:fijate que skip tiene las versiones que tiene take,es decir que hay skip,skipFirst o skipUntil,aunque no sean exactamente lo mismo hay muchos más operadores de los que veo en el curso.
+
+const interval$ = timer(2000,1000)
+const click$ = fromEvent(boton,'click').pipe(skip(2)); <- omitirá los dos primeros
+
+interval$.pipe(
+ takeUntil(click$)
+ ).subscribe(console.log) <- recuerda que takeUntil pide un Observable por argumento.
+
+				OPERADOR DISTINCT
+
+El operador distinct deja pasar únicamente los valores que no han sido previamente emitidos por el Observable.Asi pues,si un Observable emitiera los valores 1,1,2,3,3,4,1 el distinct filtraría las emisiones no emitiendo más de una vez el 1 y el 3
+
+IMPORTANTE: distinct usa el operador de equidad triple igual para comparar emisiones,asi que emitir 1 y "1" serán dos emisiones distintas.
+TIP: las PropTypes serían en runtime(tiempo de ejecución) y Typescript es en buildtime(tiempo de compilación)
+TIP: midu recomienda sacar los estados de la app afuera:
+interface AppState {
+  subs: Sub[],
+  subsCount: number
+  }
+
+  const Home: React.FC = () => {
+    const [subs,setSubs] = useState<AppState["subs"]>([]) <- fijate en el uso de computadas
+    const [subsCount,setSubsCount] = useState<AppState["subsCount"]>();
+
+Bien,fijate que distinct(callback) funcionará sin argumentos para primitivos,pero en objetos,no,ya que cada objeto es diferente:
+
+const personajes: Personaje[] = [
+  {
+    nombre: 'Megaman'
+  },
+  {
+    nombre: 'X'
+  },
+  {
+    nombre: 'Zero'
+  },
+  {
+    nombre: 'Dr. Willy'
+  },
+  {
+    nombre: 'X'
+  },
+  {
+    nombre: 'Megaman'
+  },
+  {
+    nombre: 'Zero'
+  },
+]
+
+const personajes$ = from(personajes).pipe(
+  distinct(p => p.nombre) <- ya son todos distintos,para que distinct funcione necesito una cb
+).subscribe({
+  next: v => console.log(`Nombre: ${v.nombre}`)
+})
+
+			OPERADOR DISTINCT UNTIL CHANGED
+
+Este operador también es importante.Es muy parecido al distinct,pero difiere en cuanto el distinctUntilChanged emite valores siempre y cuando la emisión anterior no sea la misma.
+Por ejemplo si tuviera estas emisiones => 1,2,2,1,3,2  realmente sólo tengo los dos 2 con emisiones repetidas consecutivas.Fijate que distinct daría una salida muy diferente
+
+IMPORTANTE: la firma del operador distinctUntilChanged(comparator) lleva un comparable como argumento opcional.Tendré que usarlo si quiero comparar propiedades de objectos,ya que distinctUntilChanged() sin argumentos de nuevo sólo valdrá para primitivos.
+
+from(personajes).pipe(
+  distinctUntilChanged( (anterior,siguiente) => anterior.nombre === siguiente.nombre)
+).subscribe(console.log)
+
+* Sin embargo,esto podría resumirse incluso aún más con el siguiente operador
+
+			OPERADOR DISTINCT UNTIL KEY CHANGED
+
+			
+ Suponiendo que tengo un Observable que emite valores en forma de Object(lo cual es muy común) puedo entrar hasta una key con este operador y olvidarme de tener que usar el argumento en forma de función compare anterior.
+ Imaginando esta sucesión de emisiones => {k:1},{k:2},{k:2},{k:1} va a emitir el 1,2 y 1(ojo,no hace como el distinct,mirando en todo el histórico de valores,sólo mira que el valor de una propiedad no sea el mismo:
+
+const personajes$ = from(personajes).pipe(
+   distinctUntilKeyChanged('nombre')
+   ).subscribe({
+     next: v => console.log(`Nombre: ${v.nombre}`)
+})
+
+Fijate que esto se puede hacer con objetos anidados:
+from(champions).pipe(
+  pluck('code'), <- la propiedad code es un objeto dentro de cada campeón
+  distinctUntilKeyChanged('serie') <- compruebo las emisiones de champion.code.serie
+
+				SECCION 7 OPERADORES DE TIEMPO
+
+Estos operadores de alguna forma se enfocan en trabajar con intervalos de tiempo,regulando las emisiones de los Observables:
+Veré los siguientes => debounceTime, throttleTime,sampleTime,sample y auditTime
+
+
+				OPERADOR DEBOUNCE TIME
+
+El debounceTime me ayuda a contar cuantos miliseconds han pasado desde la última emisión,en cuanto suceda esto se emitirá el siguiente valor.Este operador me va a ayudar a restringir la cantidad de emisiones de un Observable.
+Fijate que el ejemplo que pone es justo lo que necesitaré el 90% de las ocasiones:
+const input = document.createElement('input')
+document.querySelector('body').append(input);
+
+const input$ = fromEvent(input,'keyup');
+
+input$.pipe(
+  pluck('target','value'),
+  debounceTime(1000),
+  distinctUntilChanged(),
+).subscribe(console.log)
+Parece que el orden también importa,y va primero el debounceTime.
+En cuanto a Angular puedo suscribirme al valueChanges de un FormControl(por cada control) o si no usar la clase Subject().
+
+				OPERADOR THROTTLE TIME
+
+Tip: una interfaz de lógica de negocio es aquella que debería explicar al mostrar mi app.Por ejemplo Usuario o Cliente.Otras que se usarían para tipar States o Reducers irían en otra clase.
+El primer grupo puede ir en el file types.d.ts(en un archivo .d.ts sólo puede ir definiciones de tipos(interfaces)
+IMPORTANTE: para pasar un setter de un useState:
+const [ subs,setSubs] = useState<Sub[]> <- quiero pasar este setter:
+<SubList onNewSub={setSubs} 
+interface ListProps {
+  onNewSub: React.Dispatch<React.SetState<Sub[]>> <- fijate que necesito el namespace React
+
+Sin embargo no se recomienda pasar el setter directamente,sino una función que maneje la lógica necesaria:
+const handleNewSub = (newSub:Sub) => {
+  setSubs(subs => [...subs,newSub])
+  Fijate en la importancia de este paso y en llamar a los setters con callbacks(debería hacerlo siempre??)
+ 
+useReducer vs useState:un reducer es preferible sobre un state cuando tengo lógica que involucra multiples sub-valores o cuando el siguiente estado depende del primero:
+const initialNumberState ={
+ valueOne:0,
+ valueTwo:0,
+ valueThree:0,
+}
+const numberReducer = (prevState,action) => {
+  if(action.type === 'INCREASE_NUMBER'){
+    const { valueOne,valueTwo,valueThree } = prevState <- recuerda que puedo desestructurar el state,es un simple objeto más
+    const newValueOne = valueOne + 1;
+    const newValueTwo = valueOne + valueTwo + 1;
+    const newValueThree = valueOne + valueTwo + valueThree + 1; 
+    return {
+      valueOne: newValueOne,
+      valueTwo: newValueTwo,
+      ...
+Fijate que el reducer me hará de useState,ojo:
+const CustomComponent = (props) => {
+ const [numberState,dispatch] = useReducer(numberReducer,initialNumberState); <- ya estoy en el punto que quiero,en vez de un useState un reducer,fijate que este reducer es intrinseco al componente.
+
+ const handleClick = () => {
+    dispatch({type:'INCREASE_NUMBER'}) <- no necesitaré payload por ser muy asinto aún.
+
+Hay otra solución que es simplificar el estado.En este caso tres useState serían la solución.Fijate que no siempre será conveniente hacerlo.
+const [handleValueOne,setHandleValueOne]= useState()
+const [handleValueTwo,setHandleValueTwo]=useState() etc...
+
+Dado que React puede juntar varias llamadas a setState en una única update,(recuerda que setState es asíncrono,y por ello this.state y this.props cambiarán asíncronamente,no inmediatamente	),no debería confiar en sus valores previos pues podrían estar mal.
+this.setState({counter: this.state.counter +1}) <- mal,confio en el prevState
+setCounter(counter+1) <- mal,confio en el prevState
+
+Para solucionar esto debo usar una segunda forma de useState que acepta una función callback en vez de un argumento
+setCounter( counter => counter +1) .
+Al usar la callback me aseguro que el counter es suministrado justo en el momento de la llamada,evitando cualquier posible falseo de datos.Interesante
+
+El throttletime funciona justo al contrario que debounceTime.Emite el valor y despues ignora las siguientes emisiones durante x milisegundos.
+Por ejemplo con un throttle(1000) si se emite un valor lo emitirá inmediantemente, mientras que el debounceTime espera 1000ms y coge el último.
+Puedo apreciar las diferencias con un simple fromEvent: 
+
+click$.pipe(
+ // debounceTime(3000),
+    throttleTime(3000)
+).subscribe(console.log)
+Fijate que por esto,por que debounceTime espera esos 1000ms es que lo usamos tanto en peticiones,ya que hay que esperar al input del usuario
+TIP: hay una configuración que permite ver la primera y última emisión,dado que la pierde por defecto:
+
+const input$ = fromEvent(input, 'keyup');
+input$.pipe(
+  throttleTime(3000,asyncScheduler,{
+    leading:true,
+    trailing:true
+  }),
+  pluck('target', 'value'),
+  distinctUntilChanged(),
+).subscribe(console.log)
+TIP: recuerda que un reducer necesita un reducer y el initialState para funcionar.
+
+const formReducer = (state:FormState["InputValues"],action:Action ) => {
+  switch(action.type) {
+    case "change_value":
+      const {inputName,inputValue}= action.payload; <- putos pros
+      return {
+         ...state,
+	 [inputName]:inputValue <- siempre computa o gira la de la izquierda
+	 }
+    case "clear":
+      return INITIAL_STATE
+
+fijate como puedo declarar un type con varias firmas:
+type Action = {
+  type:"change_value",
+  payload: {inputName: string, inputValue: string }
+} | { type: "clear" <- Action podrá ser dos tipos diferentes de objetos(recuerda que hay otra sintaxis por ahi).
+Ya solo sería llamar al dispatch en el componente.Muy limpio y sencillo.
+Fijate que el store es una cosa y los reducers otra muy diferente
+Lo suyo es crear un hook ojo:
+const useNewSubForm = () => {
+  return useReducer(formReducer,INITIAL_STATE); 
+  }
+
+  const [a,b] = useNewSubForm() <- precioso
+   
