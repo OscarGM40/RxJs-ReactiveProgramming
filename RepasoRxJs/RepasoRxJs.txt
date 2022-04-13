@@ -780,4 +780,128 @@ const useNewSubForm = () => {
   }
 
   const [a,b] = useNewSubForm() <- precioso
-   
+Fijate como recomienda también Midu compaginar la response de una API con la interfaz del programa
+const mapFromAPIToSubs = (apiResponse: SubsResponseFromAPI):Array<Sub> => { 
+  return apiResponse.map( subFromApi => {
+    const { months: subMonths, profileUrl: avatar, nick, description } = subFromApi;
+    return { nick,description,avatar,subMonths }
+    fetchSubs().then( apiSubs => {
+    const subs = mapFromAPIToSubs(apiSubs)
+    setSubs(subs)
+Fijate que es mejor usar programación declarativa:
+fetchSubs()
+  .then(mapFromAPIToSubs)
+  .then(setSubs) <- debo aspirar a esto,asinto
+* Este es un ejemplo sencillo con un método,pero puedo usar el patrón adapter    
+Fijate que no es recomendable enseñar la implementación,asi que era mejor hacer esto:
+const useForm = () => {
+  const [inputValues,dispatch] = useReducer(formReducer,INITIAL_STATE);
+  const clearForm = useCallback( () => dispatch({type:'clear'}),[]);
+
+  return {
+    formState:inputValues,
+    clearForm
+    }
+    Ahora al llamar al hook no mando el puto dispatch(esto es ocultar la implementación)
+
+			   OPERADOR SAMPLE TIME
+
+El sampleTime(n) emite el último valor emitido repetidamente cada n milisegundos.Si no se emitió un valor en ese segundo(n) no emitirá nada,ojo.
+
+const click$ = fromEvent<MouseEvent>(document,'click');
+
+click$.pipe(
+  sampleTime(2000),
+  map( ({x,y}) => ({x,y})),
+).subscribe(console.log)
+Fijate que es más apropiado primero filtrar con el sampleTime y despues transformar esa emisión.De otra forma transformaria todas las emisiones,consumiendo recursos innecesarios.
+TIP:como norma general primero se filtra con operadores de filtrado y despues se transforma o procesa.
+
+				OPERADOR SAMPLE
+
+El operador sample(Observable$) emite el último valor emitido por el Observable main al que estoy suscrito cuando el Observable interno que le pase al sample(Observable$) emita un valor				
+Si el Observable interno emite una segunda vez sin que el Observable main emita nada no habra emisión,es decir,debe haber emitido algo:
+
+const interval$ = timer(500,500);
+const click$ = fromEvent(document,'click')
+
+interval$.pipe(
+  sample(click$)
+).subscribe(console.log)
+Fijate que puede ser interesante ocultar las emisiones de un Observable hasta que suceda alguna acción.
+
+				OPERADOR AUDIT TIME
+
+El auditTime emite el último valor que ha sido emitido por el Observable en un tiempo determinado.Esto lo puedo comprobar con un tap + un auditTime:
+
+const click$ = fromEvent<MouseEvent>(document, 'click');
+
+click$.pipe(
+  map( ({x,y}) => ({x,y})),
+  tap(val => console.log('tap', val)),
+  auditTime(2000),
+).subscribe(console.log)
+
+Este operador es muy útil para filtrar spam de emisiones.Parece que podría sustituir al debounceTime??
+
+			SECCION 08 PETICIONES AJAX CON PROGRAMACIÓN REACTIVA
+
+Las extensiones reactivas ya nos cubren con una forma de realizar peticiones AJAX.RX tiene formas para hacer peticiones POST,PUT;DELETE,PATCH o GET,etc...
+También puedo configurar Headers o procesar la respuesta.
+TIP: puedo pasar un Observable a Promise con Observable.toPromise().Obviamente no devuelve un Observable sino una Promise.
+const sample = val => Rx.Observable.of(val).delay(1000)
+sample('first').toPromise().then(result => console.log('from the Promise',result)
+
+			CONCEPTOS SOBRE PETICIONES NORMALES - SIN USAR RX
+
+Primero que nada la api FETCH o axios trabajan en base a Promesas y no en Observables(o streams de datos).Esto ya da una cierta desventaja.
+
+UNO: Una promesa no puede ser cancelada.Una vez que se mande,se resolverá exitosamente o no,pero no se puede cancelar.
+
+DOS: la Response de esa Promesa será un Readable Stream y no la data en sí.Tengo que procesar ese Stream(leerlo y transformarlo),mediante otra promesa(.json() | text() | blob()...)
+
+TRES: realmente el manejo de errores no está bien implementado.Ellos ya me mandan su propio error.Si hago una petición a una url no válida,ya me vendrá medio masticado todo el error,pero incluso me viene un body de nuevo,etc.Al final siempre hay que crear una función para mi lógica al producirse el error:
+
+const url = 'https://api.github.com/users?per_page=5';
+
+const fetchPromesa = fetch(url);
+
+const handleError = (response:Response) => {
+  if(!response.ok) throw new Error(response.statusText);
+  return response
+} 
+fetchPromesa
+  .then(handleError)
+  .then(resp => resp.json())
+  .then(console.log)
+  .catch( err => console.warn(err)) <- esto traerá dos errores,el suyo y el mio
+
+NOTA: fijate también que he necesitado 3 o 4 promesas para realizar una tarea tan sencilla.Además,ni siquiera hemos entrado en transformación de la data,etc... y ya tengo mucho código spagueti macarrón.
+
+		PETICIÓN HTTP USANDO AJAX DE RXJS + OPERADOR CATCH ERROR
+
+Desde la version 6 puedo crear una instancia de Ajax usando el operador ajax(from rxjs/ajax).
+
+ const url = 'https://api.github.com/usersxxx?per_page=5';
+
+ const users$ =  ajax(url); 
+
+ users$.pipe(
+   pluck('response'),
+   catchError(err => of(err))
+ ).subscribe(console.log)
+Desde luego es mucho más sencillo.Además,quedaron posibles mejoras.Esto es lo más básico.
+TIP: el operador catchError debe de retornar otro Observable(o un error? con el operador throw??)
+
+				GET JSON METHOD
+
+Puedo acceder a la respuesta tras pasarla por json() usando el método getJSON.Fijate que incluso puedo pasar Headers:
+const url = 'https://httpbin.org/delay/1';
+
+ajax.getJSON(url,{
+  "my-type":'texto-mu-complejoh'
+}).subscribe(console.log)
+
+Recuerda un formulario emite un FormEvent<T> al ser submiteado.
+Cuando un user interacciona con el teclado emite un KeyboardEvent(uno por cada pulsación)
+Todos heredarán en React de SyntheticEvent
