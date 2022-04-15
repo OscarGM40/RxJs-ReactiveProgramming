@@ -905,3 +905,182 @@ ajax.getJSON(url,{
 Recuerda un formulario emite un FormEvent<T> al ser submiteado.
 Cuando un user interacciona con el teclado emite un KeyboardEvent(uno por cada pulsación)
 Todos heredarán en React de SyntheticEvent
+
+TIP:fijate que Observable/stream es practicamente lo mismo.Cuando decimos que puedo combinar dos Oservables significa que puedo combinar dos streams
+Un stream puede ser usado como la entrada de otro,incluso múltiples streams pueden ser usados como la entrada de otro.Puedo mergear dos streams,puedo filtrarlo,y puedo transformarlo.
+
+				DIFERENCIAS ENTRE GET-JSON Y AJAX
+
+Parece que la diferencia es que uno llama al json() y el otro no.Investigar más.Fijate como manejo los errores,algo primordial:
+
+const url = 'https://httpbinxxx.org/delay/1';
+
+const handleError = (resp: AjaxError) => {
+  console.warn('Error:', resp.message)
+  return of({
+    ok:false,
+    usuarios:[]
+  })
+}
+
+const obs$ = ajax.getJSON(url, {
+  "my-header": "content of my header"
+}).pipe(
+  catchError(handleError)
+);
+const obs$2 = ajax(url).pipe(
+  catchError(handleError)
+);
+* También puedo manejar este catchError en el Observer de la Subscription:
+
+			MÉTODOS POST PUT Y DELETE USANDO OBSERVABLE AJAX
+
+Estas otras formas de realizar peticiones son indispensables conocerlas.Son realmente sencillas:
+
+const url = 'https://httpbin.org/delay/1';
+
+/* GET: es muy sencillo,además de ser el por defecto */
+const obsGET$ = ajax.get(url,{"my-header":"custom header"});
+obsGET$.subscribe(console.log);
+
+/* POST:  por post el segundo arg es el body,el tercero los headers*/
+const obsPOST$ = ajax.post(url,{id:1,nombre:"Fernando"},{"my-token":"abc123"})
+obsPOST$.subscribe(post => console.log('post',post))
+
+/* PUT: exactamente igual que el POST,3 args*/
+const obsPUT$ = ajax.put(url,{id:1,nombre:"Fernando"},{"my-token":"abc123"})
+obsPUT$.subscribe(put => console.log('put',put))
+
+TIP: fijate que los headers se traducen a My-Token,aunque escriba my-token se capitalizan por el camino.Fijate también que mi-token Javascript trataría de restar las variables mi y  token
+
+IMPORTANTE: también se puede usar una opción más dinámica,igual que con fetch.Fijate que es la misma sintaxis y en su utilidad.
+/* TIP:puedo realizar una petición con más dinamismo en las opciones,como el modo, usando ajax({options}) en vez de ajax.method */
+ajax({
+  url:url,//redundante desde ECMA6
+  method:'POST',
+  headers:{"header-programatico":"barsa apesta"},
+  body:{
+    id:2,
+    nombre:'Spiderman'
+  }
+}).subscribe(prog => console.log('prog',prog))
+
+			SECCION 09 OPERADORES DE TRANSFORMACIÓN
+
+Esta sección es fundamental.Veré como combinar streams de datos(Observables) mediante operadores de aplanamiento switchMap,mergeMap,mergeAll,concatMap,...
+
+			INTRODUCCION AL PROBLEMA Y NECESIDAD DE COMBINAR OBSERVABLES
+
+Bien,imaginemos un input de texto y que quiero hacer una petición con la entrada de ese <input>:
+TIP^: Typescript no es capaz de saber que elemento HTML dispara el Evento,y las propiedades de event.target cambian segun se disparen en un Input o un Textarea,etc,por eso el problema:
+
+input$.pipe(
+  debounceTime(500),
+  map( (event:KeyboardEvent) => {
+    const texto = event.target['value']; //solución mala,pero válida
+    const texto = (event.target as HTMLInputElement).value ó
+    const texto = (<HTMLInputElement>event.target).value
+    return ajax.getJSON(`https://api.github.com/users/${texto}`)
+  })
+).subscribe(resp => {
+  resp.pipe(
+    pluck('url')
+  )
+  .subscribe(data => console.log(data))
+})
+
+			OPERADOR COMBINACIÓN STREAMS MERGE ALL
+
+El mergeAll es el primer operador que va a trabajar con varios streams.Colecciona todas las emisiones provenientes de los inner Observables del Observable fuente y lo devuelve como otro Observable.Puede especificarse el nivel de anidación de Observables internos(por defecto infinitos??)
+
+La firma es mergeAll(concurrent:number):Observable
+Imaginando que un stream interno emite a b c y otro emite e y despues f y un tercer inner flujo/Observable emite g y h la salida sería simplemente la emisión secuencial de cada uno de los hijos:
+a b c e f g h <- es decir,simplemente fusiona los streams internos en uno.
+El Observable se completará cuando la última de las emisiones haya sido emitida.
+
+TIP:estos operadores que combinan streams se conocen como operadores de combinación.Veamos pues como mejorar el código anterior usandolos:
+
+const input$ = fromEvent<KeyboardEvent>(textInput,'keyup');
+ 
+input$.pipe(
+  debounceTime(500),
+  pluck('target','value'),
+  map(texto => ajax.getJSON(`https://api.github.com/search/users?q=${texto}`)),
+  mergeAll(), //el inner Stream es el ajax.getJSON,fijate que mergeAll va despues 
+  pluck('items') <- aqui ya estoy operando sobre la salida del mergeAll(que recibe las responses) 
+).subscribe(console.log)
+Diria que puedo ver al mergeAll como que concatena las emisiones del source Observable con las subsiguientes emisiones de sus inner Observables,ya que se suscribe a ellos y los dispara.
+
+			VIDEO 77 TIPANDO LOS OPERADORES
+
+Es importante tipar la entrada y salida en los operadores de streams,para mantener el tipado entre emisiones/streams.
+TIP: no es necesario tipar todo,sólo cuando se pierda el tipado.Por ejemplo,en el ejemplo el debounceTime sabe perfectamente que recibe un KeyboardEvent,pero el pluck se pierde.
+
+Fijate que a la hora de tipar pluck debe cambiarse por un map:
+input$.pipe(
+  debounceTime(500),
+  map<KeyboardEvent, string>(event => (<HTMLInputElement>event.target).value),
+  map<string, Observable<GithubUsers>>(texto => ajax.getJSON(`https://api.github.com/search/users?q=${texto}`)),
+  mergeAll(),
+  map<GithubUsers, GithubUser[]>(item => item.items)
+).subscribe(resp => console.log(resp[0].avatar_url))
+
+			VIDEO 78 OPERADOR COMBINACIÓN MERGE MAP
+
+De nuevo fijate que al llamar a este tipo de operadores con un inner Observable lo que recibo es el resultado de suscribirse a ese Observable.Esto es muy importante,pues se dispara la Subscription sólo con usar mergeMap,switchMap,etc...
+
+MergeMap permite que múltiples inner Subscriptions esten activas al mismo tiempo(si necesito que sólo sea una debo usar switchMap).Y si necesito que el orden de las susbscripciones internas sea secuencial,debo usar concatMap
+TIP: switchMap completa cada innerSubscription cuando el Observable interno emita,lo cual lleva a que sólo pueda haber uno activo.(supongo que se autosuscribe en la siguiente emision de ese Observable,pero siempre la cancela,lo cual es importante).
+
+const myPromise = (val: string | number) => new Promise((resolve) => setTimeout(() => resolve("In the resolve: " + val), 4000))
+
+const source$ = of('Hello');
+
+source$.pipe(
+  mergeMap(myPromise) //va a recibir 'Hello',
+).subscribe(console.log)
+
+const numbers$ = of(...[1, 2, 7, 5])
+numbers$.
+  pipe(mergeMap(myPromise)).subscribe(console.log)
+
+const mouseDown$ = fromEvent(document, 'mousedown')
+const mouseUp$ = fromEvent(document, 'mouseup')
+const interval$ = interval();
+
+mouseDown$.pipe(
+  mergeMap(() => interval$
+    .pipe(
+      debounceTime(500),
+      takeUntil(mouseUp$))),
+).subscribe(console.log) <- aqui veré la emisión del mergeMap de forma automática,ojo!
+
+Fijate que el echo de que reciban como argumento las emisiones del padre abre un abanico de posibilidades.En cuanto a las diferencias con mergeAll.
+mergeAll: fusionará todos los observables sin recibir parámetros y manda las emisiones de cada uno(propagadas).OJO,DE NUEVO,ME AUTOSUSCRIBO AL OBSERVABLE QUE RETORNA DE UNIR TODO
+mergeMap: recibe como parámetro cada emisión del padre y crea un nuevo Observable,recuerda que mergeMap o switchMap no retorna ese Observable,sino que automaticamente pasará su emisión al subscribe del padre(esto es importantísimo).
+
+Veamos ahora un pequeño problema que tiene el mergeMap por dejar todas las Subscriptions abiertas:
+
+const url = 'https://httpbin.org/delay/1?arg=';
+input$.pipe(
+  map<KeyboardEvent, string>(event => (<HTMLInputElement>event.target).value),
+  mergeMap( texto => ajax.getJSON(url+texto)) 
+).subscribe(console.log)
+
+* Fijate que por cada input me va a realizar una petición,¿realmente quiero esto?.Veamos que pasa si tecleo 'abc'.
+{args: {…}, data: '', files: {…}, form: {…}, headers: {…}, …}
+{args: {…}, data: '', files: {…}, form: {…}, headers: {…}, …}
+{args: {…}, data: '', files: {…}, form: {…}, headers: {…}, …}
+Me hace la petición tres veces.La solución es usar un switchMap o un debounceTime.
+
+Un simple debounceTime cambiará esto,pues solo soltará una emisión por cada X mls:
+const url = 'https://httpbin.org/delay/1?arg=';
+input$.pipe(
+  debounceTime(500), <- input$ ya sólo emitirá cada 500ms,perfecto
+  map<KeyboardEvent, string>(event => (<HTMLInputElement>event.target).value),
+  mergeMap( texto => ajax.getJSON(url+texto)) 
+).subscribe(console.log)
+
+				VIDEO 80 SWITCH MAP
+
+
