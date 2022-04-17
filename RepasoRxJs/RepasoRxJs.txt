@@ -1083,4 +1083,281 @@ input$.pipe(
 
 				VIDEO 80 SWITCH MAP
 
+El switchMap,al igual que el mergeMap recibe una callback con la emisión del Observable source como argumento y retorna un Observable,al que automáticamente me suscribiré y tendré la emisión en la Subscription padre.
+A diferencia del mergeMap,el switchMap sólo va a mantener un Observable interno activo a la vez.
 
+Fijate que interesante si cambiamos el ejemplo anterior a un switchMap:
+
+1?arg=a	 (canceled)	xhr	VM388:1	0 B	421 ms	XHR
+1?arg=asi (canceled)	xhr	VM388:1	0 B	302 ms	XHR
+1?arg=asa (canceled)	xhr	VM388:1	0 B	104 ms	XHR
+1?arg=asas (canceled)	200	xhr	VM388:1	1.1 kB	1.11 s	
+
+				DIFERENCIAS ENTRE MERGEMAP Y SWITCHMAP
+
+Fijate que sucede si uso mergeMap de esta forma:
+
+const click$ = fromEvent(document,'click');
+const interval$ = interval(1000);
+
+click$.pipe(
+  mergeMap( () => interval$)
+).subscribe(console.log)
+
+Por cada click voy a crear un nuevo interval,pero sin desuscribirme al anterior.En pocos clicks tendré demasiados.¿Realmente alguién puede querer esto?
+Pero que sucede si lo cambio por un switchMap?:
+
+click$.pipe(
+  switchMap( () => interval$),
+).subscribe(console.log)
+
+Puedo ver que en cada click se cancela el interval anterior,y lógicamente,empieza uno nuevo desde 0(es por esto que se cancelaban las peticiones,porque al emitir de nuevo el Observable source cancela la Subscripcion interna)
+Resumen: el switchMap sólo es capaz de mantener una Subscription interna activa,mientras que el mergeMap es capaz de mantener todas activas
+
+				VIDEO 82 CONCAT MAP
+
+Este operador de aplanamiento "concatena" los inner Observables.Es importante entender que debe terminar el Observable interno A para que empiece el B.Si por ejemplo tuviera esto:
+
+click$.pipe(
+  concatMap( () => interval$.pipe(take(5)).
+en el primer click empezará el interval 1 a emitir 4 valores.Si hiciera dos clicks más se concatenarían dos intervalos más,pero no van a emitirse en paralelo como fuera con un mergeMap.
+
+Puedo observar que con concatMap me aseguro que el Observable interno emita sus valores,a diferencia también de con un switchMap,que una nueva emisión del padre implica cancelar el hijo.
+
+				VIDEO  83 EXHAUST MAP
+
+El exhaustMap es un tanto peculiar,ya que sólo va a tener una única subscription interna como máximo.A diferencia del switchMap que una nueva emision del padre la cancela o del concatMap que las pone en cola el exhaustMap ignorará cualquier emisión del padre que pase al hijo mientras éste está emitiendo.
+En el momento que el inner Stream este vacío,si el padre emite algo de nuevo pasará al hijo el valor de la emisión y arrancará ese nuevo Observable.
+En pocas palabras,solamente mantiene una Suscription activa interna a la vez:
+
+const interval$ = interval(500).pipe(take(3));
+const click$ = fromEvent(document,'click');
+
+click$.pipe(
+  exhaustMap( () => interval$)
+).subscribe(console.log)
+* Mientras esté emitiendo el interval ya puedo hacer más clicks que los va a ignorar.Este operador es muy útil cuando el Observable padre emite muchos valores(spameo de emisiones).
+
+			EJERCICIO COMPARACIÓN MERGE-MAP SWITCH-MAP Y EXHAUST-MAP
+
+Vamos a hacer un pequeño form que haga un login a https://reqres.in/api/login:			
+
+const peticionHttpLogin = (userCredentials) => ajax.post('https://reqres.in/api/login?delay=1',userCredentials).pipe(pluck('response','token'))
+
+const form = document.createElement('form');
+const inputEmail = document.createElement('input');
+const inputPass = document.createElement('input');
+const submitBtn = document.createElement('button');
+
+inputEmail.type = 'email';
+inputEmail.placeholder = 'Enter email...';
+inputEmail.value = 'eve.holt@reqres.in';
+
+inputPass.type = 'password';
+inputPass.placeholder = 'Enter placeholder...';
+inputPass.value = 'cityslicka';
+
+submitBtn.innerHTML = 'Ingresar'
+submitBtn.style.cursor = 'pointer'
+
+form.append(inputEmail, inputPass, submitBtn);
+document.querySelector('body').append(form)
+
+// streams
+const submitForm$ = fromEvent<SubmitEvent>(form, 'submit')
+    .pipe(
+      tap((event) => event.preventDefault()),
+      map( ev => ({
+        email: ev.target[0].value,
+        password: ev.target[1].value,
+      })),
+      // mergeMap(peticionHttpLogin) //no es una buena idea usar el mergeMap
+      // switchMap(peticionHttpLogin) // el switch cancelará todas.Bien
+      exhaustMap(peticionHttpLogin)//pero el exhaust ni siquiera las manda.
+      );
+
+submitForm$.pipe(
+).subscribe( token => console.log(token))  
+
+Bien,pero que va a pasar con el mergeMap si doy al submit 5 veces?.Que hará 5 peticiones.
+Con un switchMap las cancelará.Bien.
+Pero el exhaustMap es incluso mejor,ya que ni siquiera las tiene que cancelar.
+
+			SECCION 10 OPERADORES COMBINACIÓN OBSERVABLES
+
+En esta sección veré operadores y métodos para combinar las emisiones de los observables o bien varios observables entre sí.
+Veré los operadores siguientes: startWith,endWith,concat,merge,combineLatest,forkJoin.
+
+
+				OPERADOR START WITH
+
+Como el nombre indica,este operador me permite "incrustar" una primera emisión antes de la primera emisión del Observable.
+El valor a mandar puede ser un string,un object,un number,inclusive otro Observable...
+
+const numbers$ = of(1,2,3)
+
+numbers$.pipe(
+  startWith('Starting the of Observable...')
+).subscribe(console.log)
+
+				OPERADOR END WITH
+
+De forma similar al startWith,el operador endWith emitirá un último valor antes de que se complete el Observable con lo que quiera como valor:
+
+numbers$.pipe(
+  startWith('Starting the of Observable...'),
+  endWith('Finished the of Observable...')
+).subscribe(console.log)
+
+			LABORATORIO LOADING CON START WITH
+
+Fijate la práctica tan interesante y lo fácil que es añadir un Loading condicionalmente con este operador:
+
+const loadingDiv = document.createElement('div')
+loadingDiv.classList.add('loading');
+loadingDiv.innerText = 'Cargando...'
+
+const body = document.querySelector('body')
+
+ajax.getJSON('https://reqres.in/api/users/2?delay=3')
+  .pipe(
+    startWith(true),
+  )
+  .subscribe(resp => {
+    if (resp===true) {
+      body.append(loadingDiv);
+    } else {
+      document.querySelector('.loading').remove()
+    }
+    console.log(resp);
+  })
+En un ejercicio real no lo añadiría al body,pero es super-sencillo.Podría preguntar a Unai como hizo los loadings.Aunque se consigue con un simple condicional.
+
+				FUNCION CONCAT
+
+La función concat(obs1$,obs2$,obs3$) es una función que recibe Observables por argumento.NO confundir con el operador concatMap.
+También puede recibir Iterables por argumento.
+Esta función es muy parecida a lo que hace concatMap,primero emitirá todos los valores que emita el Observable 1,despues los que emita el 2 y asi sucesivamente.
+Si el Observable 1 no fuera finito el 2 y el 3 se quedarían esperando indefinidamente,luego hay que tener cuidado con lo que se concatena. 
+
+const interval$ = timer(500, 1000);
+
+concat(
+  interval$.pipe(take(5)),
+  interval$.pipe(take(3)),
+  [1,2,3,4], <- recuerda que puede recibir un iterable cualquiera también
+  of('finished'))
+.subscribe(console.log)
+
+				FUNCION MERGE 
+
+Esta funcion merge(obs$1,obs$2,obs3$) es la contrapartida al mergeMap pero en función.El resultado será la combinación de las emisiones de los observables,a diferencia de concat que las concatena o emite en secuencia,merge emitirá cada valor en paralelo				
+
+const keyup$ = fromEvent(document,'keyup');
+const click$ = fromEvent(document,'click');
+
+merge(
+  keyup$.pipe(pluck('type')),
+  click$.pipe(pluck('type')),
+  ).subscribe(console.log)
+  
+Si bien este ejemplo no tiene mucho sentido puedo ver que mergea las emisiones indefinidamente.
+
+NOTA: estas funciones que ahora vienen de rxjs antes estaban como operadores que venian de rxjs/operators
+
+				FUNCION COMBINE LATEST
+
+La funcion combineLatest(obs1,obs2) permite mandar Observables como argumento,combinarlos y emitir los valores de todos los observables internos simultáneamente.Esto por cada emisión de cada uno.
+Es decir,imaginando que tengo dos Observables y uno emite 'a'.CombineLatest esperará que emita el otro,que por ejemplo emite 1.LA salida que emitirá combineLatest será 'a1',despues 'b2'(imaginando que emiten b y 2).
+NOTA:la salida es un arreglo realmente,manteniendo el orden de emisión(por ejemplo [a,1] ó [1,a])
+
+Fijate que cada Observable debe emitir al menos un valor(y obviamente si uno emitierá varios se cogerá el último valor(mirar si hay combineFirst,etc...).
+
+const input1 = document.createElement('input');
+const input2 = document.createElement('input');
+
+input1.placeholder = "Enter email..."
+input1.type = "email"
+input2.placeholder = "Enter password..."
+input2.type = "password"
+
+document.querySelector('body').append(input1,input2);
+
+const getInputStream = (elem:HTMLElement) => {
+  return fromEvent<KeyboardEvent>(elem,'keyup')
+    .pipe(
+      map<KeyboardEvent,string>(event => (event.target as HTMLInputElement).value))
+}
+
+combineLatest(
+  getInputStream(input1),
+  getInputStream(input2),
+).subscribe(console.log)
+
+				FUNCION FORKJOIN
+
+Asi como el merge,concat o el combineLatest la funcion forkJoin(obs1,obs2,obs3) también puede recibir varios Observables o iterables para trabajar como argumento.
+Igual que con el concat,los observable tienen que ser finitos
+Justo en el momento en que los tres Observables se completen dejando de emitir valores,el forkJoin va a emitir el valor de las tres últimas emisiones como un arreglo.
+TIP:con una pequeña configuración se puede pasar ese arreglo a un objeto
+
+const numbers$ = of(1, 2, 3, 4);
+const interval$ = interval(1000).pipe(take(3), map(x => x += 1))
+const letras$ = of('a', 'b', 'c').pipe(delay(3500))
+
+/* por defecto va a ser un Array */
+forkJoin(numbers$, interval$, letras$).subscribe(console.log)
+/* puedo usar forkJoin({}) para que arroje un object.Las propiedades serán el nombre del los observables por defecto */
+forkJoin({
+  num: numbers$,
+  interval: interval$,
+  letra: letras$
+})
+  .subscribe(resp => {
+    console.log(resp)
+  })
+
+Fijate que un objeto suele ser algo más manejable que un arreglo,y que puedo renombrar la entrada de los argumentos a lo que quiera
+
+				CASO DE USO MÁS COMÚN 
+
+El caso de uso más común es realizar peticiones AJAX de manera simultánea/paralela. 				
+const GITHUB_API_URL = 'https://api.github.com/users';
+const GITHUB_USER = 'klerith';
+
+forkJoin({
+  usuario: ajax.getJSON(`${GITHUB_API_URL}/${GITHUB_USER}`,{"header-custom":"custom 01"}),
+  repos: ajax.getJSON(`${GITHUB_API_URL}/${GITHUB_USER}/repos`,{"header-custom":"custom 01"}),
+  gists: ajax.getJSON(`${GITHUB_API_URL}/${GITHUB_USER}/gists`,{"header-custom":"custom 01"}),
+}).subscribe(console.log)
+Desde luego,esto es algo que necesito memorizar.
+TIP:normalmente querré manejar los errores.Podría hacerlo en cada ajax.getJSON o al forkJoin,es decir al grupo de Observables o a cada uno:
+
+forkJoin({
+  usuario: ajax.getJSON(`${GITHUB_API_URL}/${GITHUB_USER}`,{"header-custom":"custom 01"}),
+  repos: ajax.getJSON(`${GITHUB_API_URL}/${GITHUB_USER}/repos`,{"header-custom":"custom 01"}),
+  gists: ajax.getJSON(`${GITHUB_API_URL}/${GITHUB_USER}/gists`,{"header-custom":"custom 01"}),
+}).pipe(
+  catchError(err => of(err)),
+).subscribe(console.log)
+
+Obviamente,son cosas diferentes,realizarlo asi no impedirá que se realizen la peticiones pero al saltar el catchError general no veré su resultado(fijate que esto es o viene todo o da error).
+
+IMPORTANTE: puedo manejar el error individualmente y de esa forma cada Observable interno que se resuelva si enviará su response.Asi que realmente puedo actuar como quiera(o vienen todas o ninguna,o bien puede venir la que se resuelva).
+
+forkJoin({
+  usuario: ajax.getJSON(`${GITHUB_API_URL}/${GITHUB_USER}`,{"header-custom":"custom 01"}),
+  repos: ajax.getJSON(`${GITHUB_API_URL}/${GITHUB_USER}/repos`,{"header-custom":"custom 01"}).pipe(catchError(err => of(err,'fallo en getUsers'))),
+  gists: ajax.getJSON(`${GITHUB_API_URL}/${GITHUB_USER}/gists`,{"header-custom":"custom 01"}),
+}).pipe(
+  // catchError(err => of(err)),
+).subscribe(console.log)
+
+Fijate que combina todo lo bueno,permite ejecutar consultas en paralelo y gestionar el error como yo quiera.Memorizarlo.
+
+			SECCION 11 EJERCICIOS DE REFORZAMIENTO
+
+TIP: Fernando optó por usar funciones autoinvocadas para evitar conflictos entre archivos al mismo nivel,ya que crean un contexto o módulo diferente cada una por ser funciones autoejecutables:
+( () => {
+   <- contexto diferente por cada una de ellas.
+})();
