@@ -1361,3 +1361,10 @@ TIP: Fernando optó por usar funciones autoinvocadas para evitar conflictos entr
 ( () => {
    <- contexto diferente por cada una de ellas.
 })();
+
+IMPORTANTE: fijate que en el último ejercicio el retorno de zip va a ser resuelto por estar en un switchMap.Viene perfecto para agrupar peticiones encadenadas(fijate que necesitaré switchMap,etc, para que lo resuelva).Increible:
+
+getRequest(url).pipe(
+  switchMap( resp => zip(of(resp),resp.species[0]))
+  map( ([personaje,nave]) => ({personaje,nave})) <- fijate que fácil de array a objeto
+  ).subscribe(console.log) <- no puede ser más sencillo.Memoriza zip 
